@@ -1,0 +1,11 @@
+algorithm,endpoint,success_count,error_count,total,error_rate
+ip_hash,/file-request,0,59,59,1.0
+ip_hash,/request,191,0,191,0.0
+least_connections,/file-request,22,42,64,0.65625
+least_connections,/request,188,0,188,0.0
+power_of_two,/file-request,14,43,57,0.7543859649122807
+power_of_two,/request,218,0,218,0.0
+random,/file-request,14,40,54,0.7407407407407407
+random,/request,204,0,204,0.0
+round_robin,/file-request,20,48,68,0.7058823529411765
+round_robin,/request,201,0,201,0.0
