@@ -1,1 +1,6 @@
+__pycache__/
+*.pyc
+tmp_conv/
+.env
 core_env/
+

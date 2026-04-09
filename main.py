@@ -1,15 +1,89 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request, UploadFile, File, Form
+from fastapi.responses import JSONResponse, StreamingResponse
 import random
 import ipaddress
 import asyncio
-from typing import List, Dict, Callable
+from typing import List, Dict, Callable, Optional
+import httpx
+import time
+from io import BytesIO
+import sqlite3
+from pathlib import Path
 
-# --- Простая модель backend-серверов в памяти ---
+# --- Настройки БД (SQLite) ---
+
+DB_PATH = Path(__file__).parent / "requests.db"
+
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            algorithm TEXT NOT NULL,
+            server_name TEXT NOT NULL,
+            endpoint TEXT NOT NULL,
+            start_time REAL NOT NULL,
+            end_time REAL NOT NULL,
+            total_time REAL NOT NULL,
+            success INTEGER NOT NULL,
+            client_ip TEXT,
+            created_at REAL NOT NULL
+        )
+        """
+    )
+    conn.commit()
+    conn.close()
+
+
+def log_request(
+    algorithm: str,
+    server_name: str,
+    endpoint: str,
+    start_ts: float,
+    end_ts: float,
+    success: bool,
+    client_ip: Optional[str] = None,
+):
+    total_time = end_ts - start_ts
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO requests (
+            algorithm, server_name, endpoint,
+            start_time, end_time, total_time,
+            success, client_ip, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            algorithm,
+            server_name,
+            endpoint,
+            start_ts,
+            end_ts,
+            total_time,
+            1 if success else 0,
+            client_ip,
+            time.time(),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
+# Инициализация БД при старте
+init_db()
+
+# --- Модель backend-серверов ---
 
 class BackendServer:
     def __init__(self, name: str, url: str):
         self.name = name
+        # Базовый URL сервиса конвертации, например http://127.0.0.1:9001
         self.url = url
         self.active_connections = 0
 
@@ -21,14 +95,14 @@ class BackendServer:
         }
 
 
-# Предопределённый пул серверов (позже можно вынести в БД / конфиг)
+# Здесь считаем, что у нас три инстанса converter_wav2mp3
 servers: List[BackendServer] = [
-    BackendServer("srv1", "http://srv1:8001"),
-    BackendServer("srv2", "http://srv2:8002"),
-    BackendServer("srv3", "http://srv3:8003"),
+    BackendServer("srv1", "http://127.0.0.1:9001"),
+    BackendServer("srv2", "http://127.0.0.1:9002"),
+    BackendServer("srv3", "http://127.0.0.1:9003"),
 ]
 
-app = FastAPI(title="Simple Load Balancer Prototype")
+app = FastAPI(title="Reverse Proxy Load Balancer")
 
 # --- Алгоритмы балансировки ---
 
@@ -36,10 +110,6 @@ _rr_index = 0
 
 
 def choose_round_robin() -> BackendServer:
-    """
-    Классический Round Robin:
-    просто крутимся по списку servers по кругу.
-    """
     global _rr_index
     if not servers:
         raise RuntimeError("No backend servers configured")
@@ -49,43 +119,28 @@ def choose_round_robin() -> BackendServer:
 
 
 def choose_random() -> BackendServer:
-    """
-    Случайный выбор сервера.
-    """
     if not servers:
         raise RuntimeError("No backend servers configured")
     return random.choice(servers)
 
 
 def choose_least_connections() -> BackendServer:
-    """
-    Выбор сервера с наименьшим количеством активных соединений.
-    """
     if not servers:
         raise RuntimeError("No backend servers configured")
     return min(servers, key=lambda s: s.active_connections)
 
 
 def ip_to_int(ip_str: str) -> int:
-    """
-    Конвертация IPv4/IPv6 в целое число (аналог Convert_IP_to_Integer).
-    """
     return int(ipaddress.ip_address(ip_str))
 
 
 def basic_hash(value: int) -> int:
-    """
-    Простейший hash (Basic_Hash_Function) — можно усложнить позже.
-    """
     value = (value ^ 0x9e3779b97f4a7c15) & ((1 << 64) - 1)
     value = (value * 0xbf58476d1ce4e5b9) & ((1 << 64) - 1)
     return value & 0xFFFFFFFFFFFFFFFF
 
 
 def choose_ip_hash(client_ip: str) -> BackendServer:
-    """
-    IP Hash по схеме из методички: IP -> целое -> hash -> modulo.
-    """
     if not servers:
         raise RuntimeError("No backend servers configured")
     numeric_ip = ip_to_int(client_ip)
@@ -95,10 +150,6 @@ def choose_ip_hash(client_ip: str) -> BackendServer:
 
 
 def choose_power_of_two() -> BackendServer:
-    """
-    Power of Two Random Choices:
-    выбираем 2 случайных сервера и берём тот, у кого меньше active_connections.
-    """
     if not servers:
         raise RuntimeError("No backend servers configured")
 
@@ -135,21 +186,19 @@ async def list_servers():
     return [s.to_dict() for s in servers]
 
 
+# --- Синтетический JSON-эндпоинт для нагрузочных тестов ---
+
 @app.post("/request")
 async def handle_request(request: Request):
     """
-    Эндпоинт, который:
-    - выбирает сервер по алгоритму;
-    - увеличивает active_connections;
-    - имитирует обработку (asyncio.sleep);
-    - уменьшает active_connections.
+    Синтетический эндпоинт: имитирует обработку без реальной конвертации,
+    но логирует метрики в БД (таблица requests).
     """
     body: Dict = await request.json()
-    algo_name = body.get("algorithm", "round_robin")
-    client_ip = body.get("client_ip")  # для ip_hash
-    # искусственная длительность обработки (в секундах),
-    # можно передавать из клиента или оставить фиксированной
-    processing_time = float(body.get("processing_time", 0.2))
+
+    algo_name: str = body.get("algorithm", "round_robin")
+    client_ip: Optional[str] = body.get("client_ip")
+    processing_time = float(body.get("processing_time", 0.1))
 
     if algo_name not in ALGORITHMS:
         return JSONResponse(
@@ -165,22 +214,151 @@ async def handle_request(request: Request):
             content={"error": str(e)},
         )
 
-    # инкремент active_connections
     server.active_connections += 1
+    start_ts = time.time()
 
     try:
-        # имитация обработки запроса на backend-сервере
         await asyncio.sleep(processing_time)
+        success = True
+        error_msg = None
+    except Exception as e:
+        success = False
+        error_msg = str(e)
     finally:
-        # декремент active_connections даже при ошибках
+        end_ts = time.time()
         server.active_connections -= 1
+        # логируем в БД
+        log_request(
+            algorithm=algo_name,
+            server_name=server.name,
+            endpoint="/request",
+            start_ts=start_ts,
+            end_ts=end_ts,
+            success=success,
+            client_ip=client_ip,
+        )
+
+    total_time = end_ts - start_ts
 
     return {
         "chosen_server": server.to_dict(),
         "algorithm": algo_name,
         "client_ip": client_ip,
-        "processing_time": processing_time,
+        "success": success,
+        "error": error_msg,
+        "processing_time_param": processing_time,
+        "total_time": total_time,
     }
+
+
+# --- Новый эндпоинт для файлов: прокси на converter_wav2mp3 + логирование ---
+
+@app.post("/file-request")
+async def file_request(
+    file: UploadFile = File(...),
+    algorithm: str = Form("round_robin"),
+    client_ip: Optional[str] = Form(None),
+):
+    """
+    Эндпоинт, принимающий WAV-файл и поле algorithm, выбирающий backend
+    и проксирующий запрос на /convert/wav-to-mp3 выбранного сервера.
+    Логирует метрики в SQLite (таблица requests).
+    """
+    if algorithm not in ALGORITHMS:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Unknown algorithm: {algorithm}"},
+        )
+
+    try:
+        server = ALGORITHMS[algorithm](client_ip=client_ip)
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)},
+        )
+
+    file_bytes = await file.read()
+    filename = file.filename or "input.wav"
+
+    server.active_connections += 1
+    start_ts = time.time()
+
+    try:
+        convert_url = f"{server.url}/convert/wav-to-mp3"
+
+        async with httpx.AsyncClient() as client:
+            files = {
+                "file": (filename, BytesIO(file_bytes), file.content_type or "audio/wav")
+            }
+            resp = await client.post(convert_url, files=files, timeout=60.0)
+
+        if resp.status_code != 200:
+            end_ts = time.time()
+            server.active_connections -= 1
+            log_request(
+                algorithm=algorithm,
+                server_name=server.name,
+                endpoint="/file-request",
+                start_ts=start_ts,
+                end_ts=end_ts,
+                success=False,
+                client_ip=client_ip,
+            )
+            return JSONResponse(
+                status_code=resp.status_code,
+                content={
+                    "error": "Conversion service error",
+                    "details": resp.text,
+                    "chosen_server": server.to_dict(),
+                },
+            )
+
+        mp3_bytes = resp.content
+        success = True
+        error_msg = None
+    except Exception as e:
+        mp3_bytes = None
+        success = False
+        error_msg = str(e)
+    finally:
+        end_ts = time.time()
+        server.active_connections -= 1
+        # логируем в БД
+        log_request(
+            algorithm=algorithm,
+            server_name=server.name,
+            endpoint="/file-request",
+            start_ts=start_ts,
+            end_ts=end_ts,
+            success=success,
+            client_ip=client_ip,
+        )
+
+    total_time = end_ts - start_ts
+
+    if not success or mp3_bytes is None:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": error_msg or "Unknown error",
+                "chosen_server": server.to_dict(),
+                "algorithm": algorithm,
+                "total_time": total_time,
+            },
+        )
+
+    headers = {
+        "X-Chosen-Server": server.name,
+        "X-Algorithm": algorithm,
+        "X-Total-Time": str(total_time),
+    }
+
+    return StreamingResponse(
+        BytesIO(mp3_bytes),
+        media_type="audio/mpeg",
+        headers=headers,
+    )
 
 # Запуск:
 # uvicorn main:app --reload --port 8000
