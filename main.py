@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, UploadFile, File, Form
+from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 import random
 import ipaddress
@@ -265,24 +265,23 @@ async def file_request(
     Логирует метрики в SQLite (таблица requests).
     """
     if algorithm not in ALGORITHMS:
-        return JSONResponse(
-            status_code=400,
-            content={"error": f"Unknown algorithm: {algorithm}"},
-        )
+        raise HTTPException(status_code=400,
+                detail=f"Unknown algorithm: {algorithm}")
 
     try:
         server = ALGORITHMS[algorithm](client_ip=client_ip)
     except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e)},
-        )
+        raise HTTPException(status_code=500,
+                detail=f"Balancer error: {e}")
 
     file_bytes = await file.read()
     filename = file.filename or "input.wav"
 
     server.active_connections += 1
     start_ts = time.time()
+    mp3_bytes = None
+    success = False
+    error_msg = None
 
     try:
         convert_url = f"{server.url}/convert/wav-to-mp3"
@@ -294,32 +293,12 @@ async def file_request(
             resp = await client.post(convert_url, files=files, timeout=60.0)
 
         if resp.status_code != 200:
-            end_ts = time.time()
-            server.active_connections -= 1
-            log_request(
-                algorithm=algorithm,
-                server_name=server.name,
-                endpoint="/file-request",
-                start_ts=start_ts,
-                end_ts=end_ts,
-                success=False,
-                client_ip=client_ip,
-            )
-            return JSONResponse(
-                status_code=resp.status_code,
-                content={
-                    "error": "Conversion service error",
-                    "details": resp.text,
-                    "chosen_server": server.to_dict(),
-                },
-            )
+            error_msg = f"Conversion service error: {resp.status_code} {resp.text}"
+        else:
+            mp3_bytes = resp.content
+            success = True
 
-        mp3_bytes = resp.content
-        success = True
-        error_msg = None
     except Exception as e:
-        mp3_bytes = None
-        success = False
         error_msg = str(e)
     finally:
         end_ts = time.time()
@@ -338,20 +317,21 @@ async def file_request(
     total_time = end_ts - start_ts
 
     if not success or mp3_bytes is None:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": error_msg or "Unknown error",
-                "chosen_server": server.to_dict(),
-                "algorithm": algorithm,
-                "total_time": total_time,
-            },
+        raise HTTPException(
+                status_code=500,
+                detail= {
+                    "error": error_msg or "Unknown error",
+                    "chosen_server": server.to_dict(),
+                    "algorithm": algorithm,
+                    "total_time": total_time,
+                },
         )
 
     headers = {
         "X-Chosen-Server": server.name,
         "X-Algorithm": algorithm,
         "X-Total-Time": str(total_time),
+        "Content-Disposition": f'attachment; filename="{Path(filename).stem}.mp3"'
     }
 
     return StreamingResponse(
