@@ -80,6 +80,7 @@ init_db()
 
 # --- Модель backend-серверов ---
 
+
 class BackendServer:
     def __init__(self, name: str, url: str):
         self.name = name
@@ -95,21 +96,29 @@ class BackendServer:
         }
 
 
-# Здесь считаем, что у нас три инстанса converter_wav2mp3
-servers: List[BackendServer] = [
-    BackendServer("srv1", "http://127.0.0.1:9001"),
-    BackendServer("srv2", "http://127.0.0.1:9002"),
-    BackendServer("srv3", "http://127.0.0.1:9003"),
+# --- Пулы backend-серверов под разные сервисы ---
+
+# Аудио (WAV -> MP3)
+AUDIO_SERVERS: List[BackendServer] = [
+    BackendServer("audio1", "http://127.0.0.1:9001"),
+    # если поднимешь дополнительные инстансы converter_wav2mp3, добавишь сюда
+    # BackendServer("audio2", "http://127.0.0.1:9003"),
+]
+
+# PDF (PDF -> PNG)
+PDF_SERVERS: List[BackendServer] = [
+    BackendServer("pdf1", "http://127.0.0.1:9002"),
+    # BackendServer("pdf2", "http://127.0.0.1:9004"),  # если захочешь масштабировать
 ]
 
 app = FastAPI(title="Reverse Proxy Load Balancer")
 
-# --- Алгоритмы балансировки ---
+# --- Алгоритмы балансировки (общие, работают с любым пулом servers) ---
 
 _rr_index = 0
 
 
-def choose_round_robin() -> BackendServer:
+def choose_round_robin(servers: List[BackendServer]) -> BackendServer:
     global _rr_index
     if not servers:
         raise RuntimeError("No backend servers configured")
@@ -118,13 +127,13 @@ def choose_round_robin() -> BackendServer:
     return server
 
 
-def choose_random() -> BackendServer:
+def choose_random(servers: List[BackendServer]) -> BackendServer:
     if not servers:
         raise RuntimeError("No backend servers configured")
     return random.choice(servers)
 
 
-def choose_least_connections() -> BackendServer:
+def choose_least_connections(servers: List[BackendServer]) -> BackendServer:
     if not servers:
         raise RuntimeError("No backend servers configured")
     return min(servers, key=lambda s: s.active_connections)
@@ -140,7 +149,7 @@ def basic_hash(value: int) -> int:
     return value & 0xFFFFFFFFFFFFFFFF
 
 
-def choose_ip_hash(client_ip: str) -> BackendServer:
+def choose_ip_hash(servers: List[BackendServer], client_ip: str) -> BackendServer:
     if not servers:
         raise RuntimeError("No backend servers configured")
     numeric_ip = ip_to_int(client_ip)
@@ -149,7 +158,7 @@ def choose_ip_hash(client_ip: str) -> BackendServer:
     return servers[idx]
 
 
-def choose_power_of_two() -> BackendServer:
+def choose_power_of_two(servers: List[BackendServer]) -> BackendServer:
     if not servers:
         raise RuntimeError("No backend servers configured")
 
@@ -170,20 +179,30 @@ def choose_power_of_two() -> BackendServer:
         return server2
 
 
+# Обёртки алгоритмов: принимают пул servers и client_ip
 ALGORITHMS: Dict[str, Callable[..., BackendServer]] = {
-    "round_robin": lambda **kwargs: choose_round_robin(),
-    "random": lambda **kwargs: choose_random(),
-    "least_connections": lambda **kwargs: choose_least_connections(),
-    "ip_hash": lambda client_ip=None, **kwargs: choose_ip_hash(
-        client_ip or "127.0.0.1"
+    "round_robin": lambda servers, client_ip=None: choose_round_robin(servers),
+    "random": lambda servers, client_ip=None: choose_random(servers),
+    "least_connections": lambda servers, client_ip=None: choose_least_connections(
+        servers
     ),
-    "power_of_two": lambda **kwargs: choose_power_of_two(),
+    "ip_hash": lambda servers, client_ip=None: choose_ip_hash(
+        servers, client_ip or "127.0.0.1"
+    ),
+    "power_of_two": lambda servers, client_ip=None: choose_power_of_two(servers),
 }
 
 
 @app.get("/servers")
 async def list_servers():
-    return [s.to_dict() for s in servers]
+    """
+    Возвращаем состояние всех пулов backend-серверов.
+    Это удобно и для отладки, и как иллюстрация в дипломе.
+    """
+    return {
+        "audio": [s.to_dict() for s in AUDIO_SERVERS],
+        "pdf": [s.to_dict() for s in PDF_SERVERS],
+    }
 
 
 # --- Синтетический JSON-эндпоинт для нагрузочных тестов ---
@@ -193,6 +212,9 @@ async def handle_request(request: Request):
     """
     Синтетический эндпоинт: имитирует обработку без реальной конвертации,
     но логирует метрики в БД (таблица requests).
+
+    Для простоты используем пул AUDIO_SERVERS,
+    но при желании можно сделать отдельный пул для синтетики.
     """
     body: Dict = await request.json()
 
@@ -207,7 +229,7 @@ async def handle_request(request: Request):
         )
 
     try:
-        server = ALGORITHMS[algo_name](client_ip=client_ip)
+        server = ALGORITHMS[algo_name](servers=AUDIO_SERVERS, client_ip=client_ip)
     except Exception as e:
         return JSONResponse(
             status_code=500,
@@ -227,7 +249,6 @@ async def handle_request(request: Request):
     finally:
         end_ts = time.time()
         server.active_connections -= 1
-        # логируем в БД
         log_request(
             algorithm=algo_name,
             server_name=server.name,
@@ -251,7 +272,7 @@ async def handle_request(request: Request):
     }
 
 
-# --- Новый эндпоинт для файлов: прокси на converter_wav2mp3 + логирование ---
+# --- Эндпоинт для WAV->MP3: прокси на converter_wav2mp3 + логирование ---
 
 @app.post("/file-request")
 async def file_request(
@@ -261,18 +282,16 @@ async def file_request(
 ):
     """
     Эндпоинт, принимающий WAV-файл и поле algorithm, выбирающий backend
-    и проксирующий запрос на /convert/wav-to-mp3 выбранного сервера.
+    из пула AUDIO_SERVERS и проксирующий запрос на /convert/wav-to-mp3.
     Логирует метрики в SQLite (таблица requests).
     """
     if algorithm not in ALGORITHMS:
-        raise HTTPException(status_code=400,
-                detail=f"Unknown algorithm: {algorithm}")
+        raise HTTPException(status_code=400, detail=f"Unknown algorithm: {algorithm}")
 
     try:
-        server = ALGORITHMS[algorithm](client_ip=client_ip)
+        server = ALGORITHMS[algorithm](servers=AUDIO_SERVERS, client_ip=client_ip)
     except Exception as e:
-        raise HTTPException(status_code=500,
-                detail=f"Balancer error: {e}")
+        raise HTTPException(status_code=500, detail=f"Balancer error: {e}")
 
     file_bytes = await file.read()
     filename = file.filename or "input.wav"
@@ -303,7 +322,6 @@ async def file_request(
     finally:
         end_ts = time.time()
         server.active_connections -= 1
-        # логируем в БД
         log_request(
             algorithm=algorithm,
             server_name=server.name,
@@ -318,25 +336,140 @@ async def file_request(
 
     if not success or mp3_bytes is None:
         raise HTTPException(
-                status_code=500,
-                detail= {
-                    "error": error_msg or "Unknown error",
-                    "chosen_server": server.to_dict(),
-                    "algorithm": algorithm,
-                    "total_time": total_time,
-                },
+            status_code=500,
+            detail={
+                "error": error_msg or "Unknown error",
+                "chosen_server": server.to_dict(),
+                "algorithm": algorithm,
+                "total_time": total_time,
+            },
         )
 
     headers = {
         "X-Chosen-Server": server.name,
         "X-Algorithm": algorithm,
         "X-Total-Time": str(total_time),
-        "Content-Disposition": f'attachment; filename="{Path(filename).stem}.mp3"'
+        "Content-Disposition": f'attachment; filename="{Path(filename).stem}.mp3"',
     }
 
     return StreamingResponse(
         BytesIO(mp3_bytes),
         media_type="audio/mpeg",
+        headers=headers,
+    )
+
+
+# --- Эндпоинт для PDF->PNG: прокси на converter_pdf2png + логирование ---
+
+@app.post("/pdf2png")
+async def pdf2png_request(
+    file: UploadFile = File(...),
+    algorithm: str = Form("round_robin"),
+    client_ip: Optional[str] = Form(None),
+):
+    """
+    Эндпоинт для конвертации PDF → PNG через отдельный сервис.
+    Принимает PDF и algorithm, выбирает backend из пула PDF_SERVERS,
+    проксирует запрос на /convert/pdf-to-png и логирует метрики в SQLite.
+    Возвращает ZIP с PNG-страницами.
+    """
+    if algorithm not in ALGORITHMS:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Unknown algorithm: {algorithm}"},
+        )
+
+    try:
+        server = ALGORITHMS[algorithm](servers=PDF_SERVERS, client_ip=client_ip)
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)},
+        )
+
+    file_bytes = await file.read()
+    filename = file.filename or "input.pdf"
+
+    server.active_connections += 1
+    start_ts = time.time()
+
+    try:
+        convert_url = f"{server.url}/convert/pdf-to-png"
+
+        async with httpx.AsyncClient() as client:
+            files = {
+                "file": (
+                    filename,
+                    BytesIO(file_bytes),
+                    file.content_type or "application/pdf",
+                )
+            }
+            resp = await client.post(convert_url, files=files, timeout=120.0)
+
+        if resp.status_code != 200:
+            end_ts = time.time()
+            server.active_connections -= 1
+            log_request(
+                algorithm=algorithm,
+                server_name=server.name,
+                endpoint="/pdf2png",
+                start_ts=start_ts,
+                end_ts=end_ts,
+                success=False,
+                client_ip=client_ip,
+            )
+            return JSONResponse(
+                status_code=resp.status_code,
+                content={
+                    "error": "PDF2PNG service error",
+                    "details": resp.text,
+                    "chosen_server": server.to_dict(),
+                },
+            )
+
+        zip_bytes = resp.content
+        success = True
+        error_msg = None
+    except Exception as e:
+        zip_bytes = None
+        success = False
+        error_msg = str(e)
+    finally:
+        end_ts = time.time()
+        server.active_connections -= 1
+        log_request(
+            algorithm=algorithm,
+            server_name=server.name,
+            endpoint="/pdf2png",
+            start_ts=start_ts,
+            end_ts=end_ts,
+            success=success,
+            client_ip=client_ip,
+        )
+
+    total_time = end_ts - start_ts
+
+    if not success or zip_bytes is None:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": error_msg or "Unknown error",
+                "chosen_server": server.to_dict(),
+                "algorithm": algorithm,
+                "total_time": total_time,
+            },
+        )
+
+    headers = {
+        "X-Chosen-Server": server.name,
+        "X-Algorithm": algorithm,
+        "X-Total-Time": str(total_time),
+        "Content-Disposition": f'attachment; filename="{Path(filename).stem}_pages.zip"',
+    }
+
+    return StreamingResponse(
+        BytesIO(zip_bytes),
+        media_type="application/zip",
         headers=headers,
     )
 
