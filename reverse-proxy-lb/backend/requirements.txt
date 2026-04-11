@@ -1,0 +1,19 @@
+# backend (requirements.txt):
+# 1. For main.py:
+fastapi
+httpx
+python-multipart
+
+# 2. converter_wav2mp3.py:
+ffmpeg
+
+# 2. converter_pdf2png.py:
+pdf2image
+poppler-utils
+
+# 3. converter_rar2zip.py:
+rarfile
+
+# 4. analyze.py:
+matplotlib
+
