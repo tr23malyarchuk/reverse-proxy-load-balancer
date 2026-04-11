@@ -115,6 +115,10 @@ IMAGE_SERVERS: List[BackendServer] = [
     BackendServer("img1", "http://127.0.0.1:9003"),
 ]
 
+RAR_SERVERS: List[BackendServer] = [
+    BackendServer("rar1", "http://127.0.0.1:9005"),
+]
+
 app = FastAPI(title="Reverse Proxy Load Balancer")
 
 # --- Алгоритмы балансировки (общие, работают с любым пулом servers) ---
@@ -206,6 +210,8 @@ async def list_servers():
     return {
         "audio": [s.to_dict() for s in AUDIO_SERVERS],
         "pdf": [s.to_dict() for s in PDF_SERVERS],
+        "image": [s.to_dict() for s in IMAGE_SERVERS],
+        "archive_rar": [s.to_dict() for s in RAR_SERVERS],
     }
 
 
@@ -580,6 +586,218 @@ async def webp2png_request(
     return StreamingResponse(
         BytesIO(png_bytes),
         media_type="image/png",
+        headers=headers,
+    )
+
+@app.post("/rar2zip")
+async def rar2zip_request(
+    file: UploadFile = File(...),
+    algorithm: str = Form("round_robin"),
+    client_ip: Optional[str] = Form(None),
+):
+    if algorithm not in ALGORITHMS:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Unknown algorithm: {algorithm}"},
+        )
+
+    try:
+        server = ALGORITHMS[algorithm](servers=RAR_SERVERS, client_ip=client_ip)
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)},
+        )
+
+    file_bytes = await file.read()
+    filename = file.filename or "input.rar"
+
+    server.active_connections += 1
+    start_ts = time.time()
+
+    try:
+        convert_url = f"{server.url}/convert/rar-to-zip"
+
+        async with httpx.AsyncClient() as client:
+            files = {
+                "file": (
+                    filename,
+                    BytesIO(file_bytes),
+                    file.content_type or "application/vnd.rar",
+                )
+            }
+            resp = await client.post(convert_url, files=files, timeout=300.0)
+
+        if resp.status_code != 200:
+            end_ts = time.time()
+            server.active_connections -= 1
+            log_request(
+                algorithm=algorithm,
+                server_name=server.name,
+                endpoint="/rar2zip",
+                start_ts=start_ts,
+                end_ts=end_ts,
+                success=False,
+                client_ip=client_ip,
+            )
+            return JSONResponse(
+                status_code=resp.status_code,
+                content={
+                    "error": "RAR2ZIP service error",
+                    "details": resp.text,
+                    "chosen_server": server.to_dict(),
+                },
+            )
+
+        zip_bytes = resp.content
+        success = True
+        error_msg = None
+    except Exception as e:
+        zip_bytes = None
+        success = False
+        error_msg = str(e)
+    finally:
+        end_ts = time.time()
+        server.active_connections -= 1
+        log_request(
+            algorithm=algorithm,
+            server_name=server.name,
+            endpoint="/rar2zip",
+            start_ts=start_ts,
+            end_ts=end_ts,
+            success=success,
+            client_ip=client_ip,
+        )
+
+    total_time = end_ts - start_ts
+
+    if not success or zip_bytes is None:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": error_msg or "Unknown error",
+                "chosen_server": server.to_dict(),
+                "algorithm": algorithm,
+                "total_time": total_time,
+            },
+        )
+
+    headers = {
+        "X-Chosen-Server": server.name,
+        "X-Algorithm": algorithm,
+        "X-Total-Time": str(total_time),
+        "Content-Disposition": f'attachment; filename="{Path(filename).stem}.zip"',
+    }
+
+    return StreamingResponse(
+        BytesIO(zip_bytes),
+        media_type="application/zip",
+        headers=headers,
+    )
+
+@app.post("/ziprar")
+async def ziprar_request(
+    file: UploadFile = File(...),
+    algorithm: str = Form("round_robin"),
+    client_ip: Optional[str] = Form(None),
+):
+    if algorithm not in ALGORITHMS:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Unknown algorithm: {algorithm}"},
+        )
+
+    try:
+        server = ALGORITHMS[algorithm](servers=RAR_SERVERS, client_ip=client_ip)
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)},
+        )
+
+    file_bytes = await file.read()
+    filename = file.filename or "input.rar"
+
+    server.active_connections += 1
+    start_ts = time.time()
+
+    try:
+        convert_url = f"{server.url}/convert/rar-to-zip"
+
+        async with httpx.AsyncClient() as client:
+            files = {
+                "file": (
+                    filename,
+                    BytesIO(file_bytes),
+                    file.content_type or "application/vnd.rar",
+                )
+            }
+            resp = await client.post(convert_url, files=files, timeout=300.0)
+
+        if resp.status_code != 200:
+            end_ts = time.time()
+            server.active_connections -= 1
+            log_request(
+                algorithm=algorithm,
+                server_name=server.name,
+                endpoint="/ziprar",
+                start_ts=start_ts,
+                end_ts=end_ts,
+                success=False,
+                client_ip=client_ip,
+            )
+            return JSONResponse(
+                status_code=resp.status_code,
+                content={
+                    "error": "RAR2ZIP service error",
+                    "details": resp.text,
+                    "chosen_server": server.to_dict(),
+                },
+            )
+
+        zip_bytes = resp.content
+        success = True
+        error_msg = None
+    except Exception as e:
+        zip_bytes = None
+        success = False
+        error_msg = str(e)
+    finally:
+        end_ts = time.time()
+        server.active_connections -= 1
+        log_request(
+            algorithm=algorithm,
+            server_name=server.name,
+            endpoint="/ziprar",
+            start_ts=start_ts,
+            end_ts=end_ts,
+            success=success,
+            client_ip=client_ip,
+        )
+
+    total_time = end_ts - start_ts
+
+    if not success or zip_bytes is None:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": error_msg or "Unknown error",
+                "chosen_server": server.to_dict(),
+                "algorithm": algorithm,
+                "total_time": total_time,
+            },
+        )
+
+    headers = {
+        "X-Chosen-Server": server.name,
+        "X-Algorithm": algorithm,
+        "X-Total-Time": str(total_time),
+        "Content-Disposition": f'attachment; filename="{Path(filename).stem}.zip"',
+    }
+
+    return StreamingResponse(
+        BytesIO(zip_bytes),
+        media_type="application/zip",
         headers=headers,
     )
 
