@@ -4,3 +4,13 @@ tmp_conv/
 .env
 core_env/
 
+tmp_rar2zip/
+tmp/
+
+backend/requests.db
+data/database/*.csv
+
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
