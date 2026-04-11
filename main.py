@@ -111,6 +111,10 @@ PDF_SERVERS: List[BackendServer] = [
     # BackendServer("pdf2", "http://127.0.0.1:9004"),  # если захочешь масштабировать
 ]
 
+IMAGE_SERVERS: List[BackendServer] = [
+    BackendServer("img1", "http://127.0.0.1:9003"),
+]
+
 app = FastAPI(title="Reverse Proxy Load Balancer")
 
 # --- Алгоритмы балансировки (общие, работают с любым пулом servers) ---
@@ -470,6 +474,112 @@ async def pdf2png_request(
     return StreamingResponse(
         BytesIO(zip_bytes),
         media_type="application/zip",
+        headers=headers,
+    )
+
+@app.post("/webp2png")
+async def webp2png_request(
+    file: UploadFile = File(...),
+    algorithm: str = Form("round_robin"),
+    client_ip: Optional[str] = Form(None),
+):
+    if algorithm not in ALGORITHMS:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Unknown algorithm: {algorithm}"},
+        )
+
+    try:
+        server = ALGORITHMS[algorithm](servers=IMAGE_SERVERS, client_ip=client_ip)
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)},
+        )
+
+    file_bytes = await file.read()
+    filename = file.filename or "input.webp"
+
+    server.active_connections += 1
+    start_ts = time.time()
+
+    try:
+        convert_url = f"{server.url}/convert/webp-to-png"
+
+        async with httpx.AsyncClient() as client:
+            files = {
+                "file": (
+                    filename,
+                    BytesIO(file_bytes),
+                    file.content_type or "image/webp",
+                )
+            }
+            resp = await client.post(convert_url, files=files, timeout=60.0)
+
+        if resp.status_code != 200:
+            end_ts = time.time()
+            server.active_connections -= 1
+            log_request(
+                algorithm=algorithm,
+                server_name=server.name,
+                endpoint="/webp2png",
+                start_ts=start_ts,
+                end_ts=end_ts,
+                success=False,
+                client_ip=client_ip,
+            )
+            return JSONResponse(
+                status_code=resp.status_code,
+                content={
+                    "error": "WEBP2PNG service error",
+                    "details": resp.text,
+                    "chosen_server": server.to_dict(),
+                },
+            )
+
+        png_bytes = resp.content
+        success = True
+        error_msg = None
+    except Exception as e:
+        png_bytes = None
+        success = False
+        error_msg = str(e)
+    finally:
+        end_ts = time.time()
+        server.active_connections -= 1
+        log_request(
+            algorithm=algorithm,
+            server_name=server.name,
+            endpoint="/webp2png",
+            start_ts=start_ts,
+            end_ts=end_ts,
+            success=success,
+            client_ip=client_ip,
+        )
+
+    total_time = end_ts - start_ts
+
+    if not success or png_bytes is None:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": error_msg or "Unknown error",
+                "chosen_server": server.to_dict(),
+                "algorithm": algorithm,
+                "total_time": total_time,
+            },
+        )
+
+    headers = {
+        "X-Chosen-Server": server.name,
+        "X-Algorithm": algorithm,
+        "X-Total-Time": str(total_time),
+        "Content-Disposition": f'attachment; filename="{Path(filename).stem}.png"',
+    }
+
+    return StreamingResponse(
+        BytesIO(png_bytes),
+        media_type="image/png",
         headers=headers,
     )
 
