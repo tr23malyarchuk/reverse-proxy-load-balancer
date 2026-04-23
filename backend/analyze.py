@@ -111,8 +111,8 @@ def plot_avg_time(csv_path: Path, title: str, output_file: Path, error_bars: boo
         print(f"No CSV found at {csv_path}, skipping plot.")
         return
 
+    # Load CSV data
     algorithms, endpoints, avg_times, stdevs = [], [], [], []
-
     with open(csv_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
@@ -125,15 +125,23 @@ def plot_avg_time(csv_path: Path, title: str, output_file: Path, error_bars: boo
     unique_algos = sorted(set(algorithms))
     endpoint_types = sorted(set(endpoints))
     x = np.arange(len(unique_algos))
-    width = 0.35 if len(endpoint_types) == 2 else 0.6
 
     fig, ax = plt.subplots(figsize=(10, 6) if not error_bars else (8, 5))
 
     if error_bars:
-        ax.bar(x, avg_times, width, yerr=stdevs, capsize=5)
+        ys = [next((t for a, t in zip(algorithms, avg_times) if a == algo), 0.0)
+              for algo in unique_algos]
+        errs = [next((s for a, s in zip(algorithms, stdevs) if a == algo), 0.0)
+                for algo in unique_algos]
+        ax.bar(x, ys, width=0.6, yerr=errs, capsize=5, color='skyblue')
+        ax.set_xticks(x)
+        ax.set_xticklabels(unique_algos, rotation=45, ha="right")
     else:
+        # Multiple bars per algorithm (different endpoints)
+        width = 0.35 if len(endpoint_types) <= 2 else 0.2
         for i, ep in enumerate(endpoint_types):
-            ys = [next((t for a, e, t in zip(algorithms, endpoints, avg_times) if a == algo and e == ep), 0.0)
+            ys = [next((t for a, e, t in zip(algorithms, endpoints, avg_times)
+                        if a == algo and e == ep), 0.0)
                   for algo in unique_algos]
             ax.bar(x + i * width, ys, width, label=ep)
         ax.set_xticks(x + width * (len(endpoint_types) - 1) / 2)
