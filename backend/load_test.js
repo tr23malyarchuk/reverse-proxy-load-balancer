@@ -1,13 +1,11 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 
-// Файлы для разных сервисов
 const wavFile  = open('../data/input/sample.wav',  'b');
 const pdfFile  = open('../data/input/sample.pdf',  'b');
 const webpFile = open('../data/input/sample.webp', 'b');
 const rarFile  = open('../data/input/sample.rar',  'b');
 
-// Алгоритм балансировки: можно задать через env, иначе random
 const algorithms = [
   'round_robin',
   'random',
@@ -16,7 +14,7 @@ const algorithms = [
   'power_of_two',
 ];
 
-const ALG_FROM_ENV = __ENV.LB_ALG; // пример: LB_ALG=least_connections k6 run load_test.js
+const ALG_FROM_ENV = __ENV.LB_ALG; // LB_ALG=least_connections k6 run load_test.js
 
 function pickAlgorithm() {
   if (ALG_FROM_ENV && algorithms.includes(ALG_FROM_ENV)) {
@@ -25,20 +23,19 @@ function pickAlgorithm() {
   return algorithms[Math.floor(Math.random() * algorithms.length)];
 }
 
-// Общие настройки сценариев
 export const options = {
   scenarios: {
     wav2mp3_requests: {
       executor: 'per-vu-iterations',
       vus: 5,
-      iterations: 50,      // 250 запросов
+      iterations: 50,      // 250
       maxDuration: '5m',
       exec: 'wav2mp3Scenario',
     },
     pdf2png_requests: {
       executor: 'per-vu-iterations',
       vus: 5,
-      iterations: 50,      // 250 запросов
+      iterations: 50,      // 250
       startTime: '5s',
       maxDuration: '5m',
       exec: 'pdf2pngScenario',
@@ -46,7 +43,7 @@ export const options = {
     webp2png_requests: {
       executor: 'per-vu-iterations',
       vus: 5,
-      iterations: 50,      // 250 запросов
+      iterations: 50,      // 250
       startTime: '10s',
       maxDuration: '5m',
       exec: 'webp2pngScenario',
@@ -54,7 +51,7 @@ export const options = {
     rar2zip_requests: {
       executor: 'per-vu-iterations',
       vus: 5,
-      iterations: 50,      // 250 запросов
+      iterations: 50,      // 250
       startTime: '15s',
       maxDuration: '5m',
       exec: 'rar2zipScenario',
@@ -65,7 +62,7 @@ export const options = {
 // WAV -> MP3
 export function wav2mp3Scenario() {
   const algo = pickAlgorithm();
-  const url = 'http://localhost:8000/wav2mp3'; // или /file-request, если так в main.py
+  const url = 'http://localhost:9001/convert/wav-to-mp3';
 
   const formData = {
     file: http.file(wavFile, 'sample.wav', 'audio/wav'),
@@ -81,10 +78,10 @@ export function wav2mp3Scenario() {
   sleep(0.1);
 }
 
-// PDF -> PNG (zip с картинками)
+// PDF -> PNG
 export function pdf2pngScenario() {
   const algo = pickAlgorithm();
-  const url = 'http://localhost:8000/pdf2png';
+  const url = 'http://localhost:9002/convert/pdf-to-png';
 
   const formData = {
     file: http.file(pdfFile, 'sample.pdf', 'application/pdf'),
@@ -103,7 +100,7 @@ export function pdf2pngScenario() {
 // WEBP -> PNG
 export function webp2pngScenario() {
   const algo = pickAlgorithm();
-  const url = 'http://localhost:8000/webp2png';
+  const url = 'http://localhost:9003/convert/webp-to-png';
 
   const formData = {
     file: http.file(webpFile, 'sample.webp', 'image/webp'),
@@ -122,7 +119,7 @@ export function webp2pngScenario() {
 // RAR -> ZIP
 export function rar2zipScenario() {
   const algo = pickAlgorithm();
-  const url = 'http://localhost:8000/ziprar'; // твой фронтовый эндпоинт
+  const url = 'http://localhost:9005/convert/rar-to-zip';
 
   const formData = {
     file: http.file(rarFile, 'sample.rar', 'application/vnd.rar'),

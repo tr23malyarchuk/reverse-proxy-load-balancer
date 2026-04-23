@@ -13,7 +13,7 @@ TMP_DIR.mkdir(exist_ok=True)
 
 app = FastAPI(title="PDF to PNG converter")
 
-POPPLER_PATH: Optional[str] = None  # если нужен poppler_path под Windows — тут можно указать путь
+POPPLER_PATH: Optional[str] = None
 
 
 def save_upload_to_tmp(file: UploadFile, suffix: str) -> Path:
@@ -28,16 +28,12 @@ def save_upload_to_tmp(file: UploadFile, suffix: str) -> Path:
 
 @app.post("/convert/pdf-to-png")
 async def convert_pdf_to_png(file: UploadFile = File(...)):
-    """
-    Принимает PDF и возвращает ZIP-архив с PNG-страницами.
-    """
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Expected a PDF file")
 
     try:
         tmp_pdf = save_upload_to_tmp(file, ".pdf")
 
-        # Конвертация PDF в изображения
         images = convert_from_path(
             str(tmp_pdf),
             dpi=200,
@@ -46,7 +42,6 @@ async def convert_pdf_to_png(file: UploadFile = File(...)):
         if not images:
             raise HTTPException(status_code=500, detail="No pages found in PDF")
 
-        # Сохраняем все страницы в PNG во временный архив
         import zipfile
         zip_name = f"{uuid.uuid4().hex}.zip"
         zip_path = TMP_DIR / zip_name
@@ -62,7 +57,6 @@ async def convert_pdf_to_png(file: UploadFile = File(...)):
         def iterfile():
             with open(zip_path, "rb") as f:
                 yield from f
-            # опционально: очищать zip после отдачи
             try:
                 os.remove(zip_path)
                 os.remove(tmp_pdf)

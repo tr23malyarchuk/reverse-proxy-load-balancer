@@ -3,11 +3,11 @@ import sys
 import time
 
 PROCS = [
-    ["uvicorn", "main:app", "--reload", "--port", "8000"],
-    ["uvicorn", "converter_wav2mp3:app", "--reload", "--port", "9001"],
-    ["uvicorn", "converter_pdf2png:app", "--reload", "--port", "9002"],
-    ["uvicorn", "converter_webp2png:app", "--reload", "--port", "9003"],
-    ["uvicorn", "converter_rar2zip:app", "--reload", "--port", "9005"],
+    ["uvicorn", "main:app", "--port", "8000"],
+    ["uvicorn", "services.converter_wav2mp3:app", "--port", "9001"],
+    ["uvicorn", "services.converter_pdf2png:app", "--port", "9002"],
+    ["uvicorn", "services.converter_webp2png:app", "--port", "9003"],
+    ["uvicorn", "services.converter_rar2zip:app", "--port", "9005"],
 ]
 
 def main():

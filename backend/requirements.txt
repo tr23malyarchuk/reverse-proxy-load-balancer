@@ -17,3 +17,6 @@ rarfile
 # 4. analyze.py:
 matplotlib
 
+# etc.
+uvicorn[standard]
+
