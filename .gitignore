@@ -7,7 +7,7 @@ core_env/
 tmp_rar2zip/
 tmp/
 
-backend/requests.db
+backend/data/requests.db
 data/database/*.csv
 
 frontend/node_modules/

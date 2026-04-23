@@ -21,7 +21,7 @@ from fastapi import (
 from fastapi.responses import JSONResponse, StreamingResponse
 
 #  Configuration and database utilities
-DB_PATH = Path(__file__).parent / "requests.db"
+DB_PATH = Path(__file__).parent / "data/requests.db"
 
 
 def init_db() -> None:
