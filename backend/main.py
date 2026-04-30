@@ -204,11 +204,27 @@ class DynamicPool:
             return []
 
     async def _is_healthy(self, server: BackendServer) -> bool:
-        """Check /health endpoint of a container."""
+        """
+        Check that the container's HTTP server is reachable.
+
+        The managed image (tr23malyarchuk/pa-tr23malyarchuk) does not expose
+        a /health endpoint, so we simply open a TCP connection to the port.
+        Any HTTP response (even 404) means the server is up and accepting
+        connections; a connection error means it is not.
+        """
+        import asyncio as _asyncio
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                r = await client.get(f"{server.url}/health")
-                return r.status_code == 200
+            # asyncio.open_connection is a pure TCP check – no HTTP needed.
+            _reader, _writer = await _asyncio.wait_for(
+                _asyncio.open_connection("127.0.0.1", server.port),
+                timeout=3.0,
+            )
+            _writer.close()
+            try:
+                await _writer.wait_closed()
+            except Exception:
+                pass
+            return True
         except Exception:
             return False
 
