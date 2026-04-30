@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from "react";
 import "./App.css";
-  
+import AdminPanel from "./AdminPanel";
+
 const SERVICES = [
   {
     id: "pdf2png",
@@ -40,14 +41,13 @@ const SERVICES = [
   },
 ];
 
-function App() {
+function ConverterPage() {
   const [selectedService, setSelectedService] = useState(null);
   const [file, setFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState(null);
   const [error, setError] = useState(null);
 
-  // handlers (memoized to avoid useless re-renders)
   const handleTileClick = useCallback((service) => {
     setSelectedService(service);
     setFile(null);
@@ -86,7 +86,6 @@ function App() {
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
 
-      // auto download
       const a = document.createElement("a");
       a.href = url;
       a.download = selectedService.filename;
@@ -95,7 +94,6 @@ function App() {
       document.body.removeChild(a);
 
       if (downloadUrl) URL.revokeObjectURL(downloadUrl);
-
       setDownloadUrl(url);
     } catch (err) {
       console.error(err);
@@ -106,7 +104,7 @@ function App() {
   };
 
   return (
-    <div className="page">
+    <>
       <header className="header">
         <h1 className="title">File Conversion Platform</h1>
         <p className="subtitle">
@@ -117,33 +115,25 @@ function App() {
       <main className="main">
         <section className="tilesSection">
           <h2 className="sectionTitle">Доступні сервіси</h2>
-
           <div className="tilesGrid">
             {SERVICES.map((service) => {
-              const isActive =
-                selectedService?.id === service.id;
-
+              const isActive = selectedService?.id === service.id;
               return (
                 <button
                   key={service.id}
                   type="button"
-                  className={`tile ${
-                    isActive ? "active" : "inactive"
-                  }`}
+                  className={`tile ${isActive ? "active" : "inactive"}`}
                   style={{ backgroundColor: service.color }}
                   onClick={() => handleTileClick(service)}
                 >
                   <h3 className="tileTitle">{service.title}</h3>
-                  <p className="tileDescription">
-                    {service.description}
-                  </p>
+                  <p className="tileDescription">{service.description}</p>
                 </button>
               );
             })}
           </div>
         </section>
 
-        {/* FORM */}
         <section className="formSection">
           <h2 className="sectionTitle">Панель завантаження</h2>
 
@@ -154,7 +144,7 @@ function App() {
           )}
 
           {selectedService && (
-            <form className="form" onSubmit={handleSubmit}>
+            <div className="form">
               <div className="formRow">
                 <label className="label">
                   Обраний сервіс:
@@ -178,13 +168,12 @@ function App() {
 
               <div className="formRow">
                 <button
-                  type="submit"
+                  type="button"
                   className="submitButton"
                   disabled={!file || isUploading}
+                  onClick={handleSubmit}
                 >
-                  {isUploading
-                    ? "Обробка..."
-                    : "Надіслати на конвертацію"}
+                  {isUploading ? "Обробка..." : "Надіслати на конвертацію"}
                 </button>
               </div>
 
@@ -192,19 +181,40 @@ function App() {
 
               {downloadUrl && (
                 <div className="formRow">
-                  <a
-                    href={downloadUrl}
-                    download
-                    className="downloadLink"
-                  >
+                  <a href={downloadUrl} download className="downloadLink">
                     Завантажити оброблений файл
                   </a>
                 </div>
               )}
-            </form>
+            </div>
           )}
         </section>
       </main>
+    </>
+  );
+}
+
+function App() {
+  const [page, setPage] = useState("converter");
+
+  return (
+    <div className="page">
+      <nav className="topNav">
+        <button
+          className={`navBtn ${page === "converter" ? "navBtnActive" : ""}`}
+          onClick={() => setPage("converter")}
+        >
+          Конвертер
+        </button>
+        <button
+          className={`navBtn ${page === "admin" ? "navBtnActive" : ""}`}
+          onClick={() => setPage("admin")}
+        >
+          Адмін-панель
+        </button>
+      </nav>
+
+      {page === "converter" ? <ConverterPage /> : <AdminPanel />}
     </div>
   );
 }
