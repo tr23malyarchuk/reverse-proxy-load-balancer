@@ -1,12 +1,10 @@
 fastapi
-httpx
+uvicorn[standard]
 python-multipart
-ffmpeg
+ffmpeg-python
 pdf2image
-poppler-utils
 Pillow
 patool
 rarfile
 matplotlib
-uvicorn[standard]
-
+httpx

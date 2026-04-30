@@ -9,6 +9,9 @@ from pathlib import Path
 
 app = FastAPI(title="File Converter Service")
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 @app.post("/convert/wav-to-mp3")
 async def wav_to_mp3(file: UploadFile = File(...)):
