@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import "./AdminPanel.css";
 
-const API = "http://localhost:8000";
+const API = "";
 const REFRESH_INTERVAL = 5000;
 
 const ALGO_COLORS = {
@@ -48,7 +48,7 @@ function useAdminData() {
   return { servers, stats, recent, connected, lastUpdate, fetchAll };
 }
 
-// ── Mini bar chart (pure SVG, no dependencies) ──────────────────────────────
+// Mini bar chart (pure SVG, no dependencies)
 function BarChart({ data, colors }) {
   if (!data || !data.length) return <div className="ap-empty-chart">Немає даних</div>;
   const max = Math.max(...data.map(d => d.value), 1);
@@ -76,7 +76,7 @@ function BarChart({ data, colors }) {
   );
 }
 
-// ── Sparkline ────────────────────────────────────────────────────────────────
+// Sparkline
 function Sparkline({ values, color = "#3b82f6" }) {
   if (!values || values.length < 2) return null;
   const W = 80, H = 28;
@@ -93,7 +93,7 @@ function Sparkline({ values, color = "#3b82f6" }) {
   );
 }
 
-// ── Metric card ──────────────────────────────────────────────────────────────
+// Metric card
 function MetricCard({ label, value, color, spark }) {
   return (
     <div className="ap-metric">
@@ -108,7 +108,7 @@ function MetricCard({ label, value, color, spark }) {
   );
 }
 
-// ── Server card ──────────────────────────────────────────────────────────────
+// Server card 
 function ServerCard({ server, statRow, colorIdx }) {
   const color = SERVER_COLORS[colorIdx % SERVER_COLORS.length];
   const rate = statRow?.total ? Math.round((statRow.success / statRow.total) * 100) : 100;
@@ -146,7 +146,7 @@ function ServerCard({ server, statRow, colorIdx }) {
   );
 }
 
-// ── Requests log table ───────────────────────────────────────────────────────
+// Requests log table
 function LogTable({ requests }) {
   const [filter, setFilter] = useState("");
   const servers = [...new Set(requests.map(r => r.server))].sort();
@@ -212,7 +212,7 @@ function LogTable({ requests }) {
   );
 }
 
-// ── Algorithms reference ─────────────────────────────────────────────────────
+// Algorithms reference
 const ALGO_INFO = [
   { id: "round_robin",       label: "По черзі",           desc: "Однорідні запити, рівномірне навантаження" },
   { id: "random",            label: "Випадково",           desc: "Тестування, рівноцінні сервери" },
@@ -258,7 +258,7 @@ function AlgorithmsPanel({ algorithms, recentRequests }) {
   );
 }
 
-// ── Main AdminPanel ──────────────────────────────────────────────────────────
+// Main AdminPanel
 const TABS = [
   { id: "overview",   label: "Огляд" },
   { id: "servers",    label: "Сервери" },
@@ -328,7 +328,7 @@ export default function AdminPanel() {
         ))}
       </div>
 
-      {/* ── Overview ── */}
+      {/* Overview */}
       {tab === "overview" && (
         <div className="ap-section">
           <div className="ap-metrics-row">
@@ -374,7 +374,7 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* ── Servers ── */}
+      {/* Servers */}
       {tab === "servers" && (
         <div className="ap-section">
           {liveServers.length === 0 ? (
@@ -391,7 +391,7 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* ── Stats ── */}
+      {/* Stats */}
       {tab === "stats" && (
         <div className="ap-section">
           <div className="ap-card">
@@ -440,10 +440,10 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* ── Log ── */}
+      {/* Log */}
       {tab === "log" && <LogTable requests={requests} />}
 
-      {/* ── Algorithms ── */}
+      {/* Algorithms */}
       {tab === "algorithms" && (
         <AlgorithmsPanel
           algorithms={servers.algorithms || []}

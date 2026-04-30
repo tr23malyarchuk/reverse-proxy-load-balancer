@@ -25,6 +25,7 @@ from typing import Dict, List, Optional, Tuple
 
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 # ---------------------------------------------------------------------------
@@ -352,6 +353,13 @@ def choose_backend(
 # ---------------------------------------------------------------------------
 
 app = FastAPI(title="Reverse Proxy Load Balancer")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 http_client: httpx.AsyncClient
 
 
@@ -424,6 +432,43 @@ async def stats() -> Dict[str, object]:
                 "avg_s": r[3],
                 "min_s": r[4],
                 "max_s": r[5],
+            }
+            for r in rows
+        ]
+    }
+
+
+@app.get("/recent", summary="Last N requests from DB")
+async def recent(n: int = 50) -> Dict[str, object]:
+    """
+    Returns the last N requests logged in the database.
+    Used by the web admin panel.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        rows = conn.execute(
+            """
+            SELECT server_name, algorithm, endpoint,
+                   ROUND(total_time, 3), success,
+                   datetime(created_at, 'unixepoch', 'localtime') as ts
+            FROM requests
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (n,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    return {
+        "requests": [
+            {
+                "server": r[0],
+                "algorithm": r[1],
+                "endpoint": r[2],
+                "total_time": r[3],
+                "success": bool(r[4]),
+                "timestamp": r[5],
             }
             for r in rows
         ]
