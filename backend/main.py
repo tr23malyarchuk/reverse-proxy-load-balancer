@@ -206,7 +206,7 @@ class DynamicPool:
     async def _is_healthy(self, server: BackendServer) -> bool:
         """Check /health endpoint of a container."""
         try:
-            async with httpx.AsyncClient(timeout=2.0) as client:
+            async with httpx.AsyncClient(timeout=5.0) as client:
                 r = await client.get(f"{server.url}/health")
                 return r.status_code == 200
         except Exception:
