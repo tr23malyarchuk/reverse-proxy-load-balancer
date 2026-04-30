@@ -46,7 +46,6 @@ function App() {
   const [isUploading, setIsUploading] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState(null);
   const [error, setError] = useState(null);
-  const [algorithm, setAlgorithm] = useState("round_robin");
 
   // handlers (memoized to avoid useless re-renders)
   const handleTileClick = useCallback((service) => {
@@ -73,7 +72,6 @@ function App() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("algorithm", algorithm);
 
       const response = await fetch(selectedService.endpoint, {
         method: "POST",
@@ -175,25 +173,6 @@ function App() {
                     onChange={handleFileChange}
                     className="fileInput"
                   />
-                </label>
-              </div>
-
-              <div className="formRow">
-                <label className="label">
-                  Алгоритм балансування:
-                  <select
-                    value={algorithm}
-                    onChange={(e) => setAlgorithm(e.target.value)}
-                    className="select"
-                  >
-                    <option value="round_robin">round_robin</option>
-                    <option value="least_connections">
-                      least_connections
-                    </option>
-                    <option value="ip_hash">ip_hash</option>
-                    <option value="random">random</option>
-                    <option value="power_of_two">power_of_two</option>
-                  </select>
                 </label>
               </div>
 
