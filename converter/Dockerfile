@@ -7,7 +7,7 @@ WORKDIR /app
 
 # Системные зависимости: ffmpeg и poppler-utils для pdf2image
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg poppler-utils && \
+    apt-get install -y --no-install-recommends ffmpeg poppler-utils unrar-free && \
     rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

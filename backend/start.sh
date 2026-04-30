@@ -2,6 +2,7 @@
 # start.sh — запускає всю систему
 
 echo "=== Збираємо образ конвертора ==="
+sudo chmod 666 /var/run/docker.sock
 docker build -t tr23malyarchuk/pa-tr23malyarchuk:latest ../converter
 
 echo "=== Запускаємо scriptA (масштабування) ==="
