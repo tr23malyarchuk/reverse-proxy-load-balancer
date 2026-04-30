@@ -1,0 +1,12 @@
+fastapi
+httpx
+python-multipart
+ffmpeg
+pdf2image
+poppler-utils
+Pillow
+patool
+rarfile
+matplotlib
+uvicorn[standard]
+
