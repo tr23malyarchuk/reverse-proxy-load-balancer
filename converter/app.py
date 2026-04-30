@@ -6,6 +6,7 @@ from pdf2image import convert_from_bytes
 import zipfile
 import tempfile
 from pathlib import Path
+from PIL import Image
 
 app = FastAPI(title="File Converter Service")
 
@@ -58,5 +59,51 @@ async def pdf_to_png(file: UploadFile = File(...)):
         headers={"Content-Disposition": 'attachment; filename="pages.zip"'},
     )
 
-# TODO: add /convert/webp-to-png, /convert/rar-to-zip,
+
+@app.post("/convert/webp-to-png")
+async def webp_to_png(file: UploadFile = File(...)):
+    data = await file.read()
+    try:
+        with Image.open(BytesIO(data)) as im:
+            if im.mode not in ("RGB", "RGBA"):
+                im = im.convert("RGBA")
+            buf = BytesIO()
+            im.save(buf, format="PNG")
+            buf.seek(0)
+            return StreamingResponse(
+                buf,
+                media_type="image/png",
+                headers={"Content-Disposition": 'attachment; filename="output.png"'},
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Conversion error: {e}")
+
+
+@app.post("/convert/rar-to-zip")
+async def rar_to_zip(file: UploadFile = File(...)):
+    data = await file.read()
+    import rarfile, os, shutil, uuid
+    tmp_id = uuid.uuid4().hex
+    tmp_dir = Path(f"/tmp/rar_{tmp_id}")
+    tmp_dir.mkdir()
+    rar_path = tmp_dir / "input.rar"
+    try:
+        rar_path.write_bytes(data)
+        with rarfile.RarFile(rar_path) as rf:
+            rf.extractall(tmp_dir / "out")
+        mem = BytesIO()
+        with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as zf:
+            for f in (tmp_dir / "out").rglob("*"):
+                if f.is_file():
+                    zf.write(f, f.relative_to(tmp_dir / "out"))
+        mem.seek(0)
+        return StreamingResponse(
+            mem,
+            media_type="application/zip",
+            headers={"Content-Disposition": 'attachment; filename="output.zip"'},
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"RAR error: {e}")
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
