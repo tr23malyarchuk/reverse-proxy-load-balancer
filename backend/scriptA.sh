@@ -12,7 +12,7 @@ set -euo pipefail
 
 IMAGE_NAME="tr23malyarchuk/pa-tr23malyarchuk:latest"
 MAX_BUSY_COUNT=2     # minutes busy before scale-out
-MAX_IDLE_COUNT=2     # minutes idle before shutdown
+MAX_IDLE_COUNT=10     # minutes idle before shutdown
 
 # Container metadata (name → cpu_core, name → port)
 declare -A CPU_CORE=( [srv1]=0 [srv2]=1 [srv3]=2 [srv4]=3 )
