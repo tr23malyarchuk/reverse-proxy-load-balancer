@@ -151,8 +151,8 @@ class BackendServer:
 # Pools for different conversion services
 AUDIO_SERVERS: List[BackendServer] = [
     BackendServer("audio1", "http://127.0.0.1:8081"),
+    BackendServer("audio2", "http://127.0.0.1:8082"),
 ]
-
 PDF_SERVERS: List[BackendServer] = [
     BackendServer("pdf1", "http://127.0.0.1:9002"),
 ]
