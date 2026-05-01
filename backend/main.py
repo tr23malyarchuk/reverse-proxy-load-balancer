@@ -28,10 +28,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
-# ---------------------------------------------------------------------------
 # Configuration
-# ---------------------------------------------------------------------------
-
 DB_PATH = Path(__file__).parent / "data/requests.db"
 
 # Containers managed by scriptA.sh  →  their host ports
@@ -59,11 +56,7 @@ SUPPORTED_ALGORITHMS = {
     "power_of_two",
 }
 
-# ---------------------------------------------------------------------------
 # Database
-# ---------------------------------------------------------------------------
-
-
 def init_db() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
@@ -126,11 +119,7 @@ def log_request(
         conn.close()
 
 
-# ---------------------------------------------------------------------------
 # Backend model
-# ---------------------------------------------------------------------------
-
-
 class BackendServer:
     """One running container instance."""
 
@@ -148,11 +137,7 @@ class BackendServer:
         }
 
 
-# ---------------------------------------------------------------------------
 # Dynamic pool  –  queries Docker socket to find live containers
-# ---------------------------------------------------------------------------
-
-
 class DynamicPool:
     """
     Maintains the list of healthy BackendServer instances by periodically
@@ -167,10 +152,7 @@ class DynamicPool:
         self._lock = asyncio.Lock()
         self._docker_client: Optional[httpx.AsyncClient] = None
 
-    # ------------------------------------------------------------------
     # Lifecycle
-    # ------------------------------------------------------------------
-
     async def start(self) -> None:
         self._docker_client = httpx.AsyncClient(
             base_url="http://docker",
@@ -184,10 +166,7 @@ class DynamicPool:
         if self._docker_client:
             await self._docker_client.aclose()
 
-    # ------------------------------------------------------------------
     # Internal refresh
-    # ------------------------------------------------------------------
-
     async def _running_container_names(self) -> List[str]:
         """Ask Docker which of our managed containers are currently running."""
         try:
@@ -255,10 +234,7 @@ class DynamicPool:
             await asyncio.sleep(POOL_REFRESH_INTERVAL)
             await self._refresh()
 
-    # ------------------------------------------------------------------
     # Public API
-    # ------------------------------------------------------------------
-
     async def get_servers(self) -> List[BackendServer]:
         async with self._lock:
             return list(self._servers)
@@ -281,10 +257,7 @@ class DynamicPool:
 pool = DynamicPool()
 
 
-# ---------------------------------------------------------------------------
 # Load-balancing algorithms
-# ---------------------------------------------------------------------------
-
 _rr_index: int = 0
 
 
@@ -348,10 +321,7 @@ def choose_backend(
     return dispatch[algorithm]()
 
 
-# ---------------------------------------------------------------------------
 # FastAPI app
-# ---------------------------------------------------------------------------
-
 app = FastAPI(title="Reverse Proxy Load Balancer")
 
 app.add_middleware(
@@ -377,11 +347,7 @@ async def on_shutdown() -> None:
     await pool.stop()
 
 
-# ---------------------------------------------------------------------------
 # Status / admin  (terminal-friendly, no frontend needed)
-# ---------------------------------------------------------------------------
-
-
 @app.get("/servers", summary="List currently healthy backends")
 async def list_servers() -> Dict[str, object]:
     """
@@ -475,11 +441,7 @@ async def recent(n: int = 50) -> Dict[str, object]:
     }
 
 
-# ---------------------------------------------------------------------------
 # Core proxy helper  (retries across healthy servers)
-# ---------------------------------------------------------------------------
-
-
 async def _proxy(
     *,
     file: UploadFile,
@@ -591,11 +553,7 @@ async def _proxy(
     )
 
 
-# ---------------------------------------------------------------------------
 # Public conversion endpoints
-# ---------------------------------------------------------------------------
-
-
 @app.post("/file-request", summary="WAV → MP3")
 async def wav_to_mp3(
     file: UploadFile = File(...),
@@ -689,3 +647,4 @@ async def ziprar(
         response_filename_suffix=".zip",
         timeout=300.0,
     )
+
