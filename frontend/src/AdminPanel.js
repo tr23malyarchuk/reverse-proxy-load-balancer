@@ -48,14 +48,15 @@ function useAdminData() {
   return { servers, stats, recent, connected, lastUpdate, fetchAll };
 }
 
-// Mini bar chart (pure SVG, no dependencies)
 function BarChart({ data, colors }) {
   if (!data || !data.length) return <div className="ap-empty-chart">Немає даних</div>;
   const max = Math.max(...data.map(d => d.value), 1);
-  const W = 100, H = 60, barW = Math.min(32, (W / data.length) - 4), gap = W / data.length;
+  const W = 100, H = 50;
+  const gap = W / data.length;
+  const barW = Math.min(20, gap - 4);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H + 16}`} className="ap-bar-svg" preserveAspectRatio="none">
+    <svg viewBox={`0 0 ${W} ${H + 25}`} className="ap-bar-svg" style={{ width: '100%', height: 'auto' }}>
       {data.map((d, i) => {
         const barH = Math.max(2, (d.value / max) * H);
         const x = i * gap + (gap - barW) / 2;
@@ -64,9 +65,15 @@ function BarChart({ data, colors }) {
           <g key={i}>
             <rect
               x={x} y={H - barH} width={barW} height={barH}
-              rx="3" fill={color} opacity="0.85"
+              rx="2" fill={color} opacity="0.85"
             />
-            <text x={x + barW / 2} y={H + 12} textAnchor="middle" fontSize="7" fill="#6b7280">
+            <text 
+              x={x + barW / 2 + 3} y={H + 8} 
+              textAnchor="start" 
+              fontSize="6" 
+              fill="#6b7280"
+              transform={`rotate(45, ${x + barW / 2 + 3}, ${H + 8})`}
+            >
               {d.label}
             </text>
           </g>
