@@ -1,6 +1,8 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, Suspense } from "react";
 import "./App.css";
-import AdminPanel from "./AdminPanel";
+
+// Developer mode: On -> AdminPanel loaded
+const AdminPanel = React.lazy(() => import("./AdminPanel"));
 
 const SERVICES = [
   {
@@ -33,7 +35,7 @@ const SERVICES = [
   {
     id: "ziprar",
     title: "RAR -> ZIP",
-    description: "Перепакування архiвiв RAR в ZIP",
+    description: "Перепакування архівів RAR в ZIP",
     color: "#9C27B0",
     accept: ".zip,.rar,application/zip,application/x-rar-compressed",
     endpoint: "/ziprar",
@@ -196,25 +198,65 @@ function ConverterPage() {
 
 function App() {
   const [page, setPage] = useState("converter");
+  const [devMode, setDevMode] = useState(false);
+
+  const handleDevToggle = () => {
+    setDevMode((prev) => {
+      const next = !prev;
+      // Developer mode: Off -> return to converter
+      if (!next && page === "admin") setPage("converter");
+      return next;
+    });
+  };
 
   return (
     <div className="page">
       <nav className="topNav">
-        <button
-          className={`navBtn ${page === "converter" ? "navBtnActive" : ""}`}
-          onClick={() => setPage("converter")}
-        >
-          Конвертер
-        </button>
-        <button
-          className={`navBtn ${page === "admin" ? "navBtnActive" : ""}`}
-          onClick={() => setPage("admin")}
-        >
-          Адмін-панель
-        </button>
+        <div className="navLeft">
+          <button
+            className={`navBtn ${page === "converter" ? "navBtnActive" : ""}`}
+            onClick={() => setPage("converter")}
+          >
+            Конвертер
+          </button>
+
+          {/* Developer mode: On -> AdminPanel is rendered */}
+          {devMode && (
+            <button
+              className={`navBtn ${page === "admin" ? "navBtnActive" : ""}`}
+              onClick={() => setPage("admin")}
+            >
+              Адмін-панель
+            </button>
+          )}
+        </div>
+
+        <div className="navRight">
+          <label className="devToggle">
+            <span className="devToggleLabel">Developer mode</span>
+            <div
+              className={`devSlider ${devMode ? "devSliderOn" : ""}`}
+              onClick={handleDevToggle}
+              role="switch"
+              aria-checked={devMode}
+              tabIndex={0}
+              onKeyDown={(e) => e.key === "Enter" && handleDevToggle()}
+            >
+              <div className="devSliderThumb" />
+            </div>
+            <span className="devToggleState">{devMode ? "ON" : "OFF"}</span>
+          </label>
+        </div>
       </nav>
 
-      {page === "converter" ? <ConverterPage /> : <AdminPanel />}
+      {page === "converter" && <ConverterPage />}
+
+      {/* AdminPanel is loaded via React.lazy - only when needed */}
+      {page === "admin" && devMode && (
+        <Suspense fallback={<div className="lazyLoading">Завантаження адмін-панелі...</div>}>
+          <AdminPanel />
+        </Suspense>
+      )}
     </div>
   );
 }
