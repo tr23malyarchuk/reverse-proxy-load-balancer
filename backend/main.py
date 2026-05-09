@@ -461,6 +461,252 @@ async def recent(n: int = 50) -> Dict[str, object]:
     }
 
 
+# ---------------------------------------------------------------------------
+# Config-server API  (Services, Machines, Pools, Instances, Autoscaling)
+# ---------------------------------------------------------------------------
+
+def _cfg_db() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+
+@app.get("/cfg/services")
+async def cfg_get_services():
+    with _cfg_db() as c:
+        rows = c.execute("SELECT * FROM Services ORDER BY idService").fetchall()
+    return [dict(r) for r in rows]
+
+
+@app.post("/cfg/services")
+async def cfg_create_service(request: Request):
+    body = await request.json()
+    with _cfg_db() as c:
+        cur = c.execute(
+            "INSERT INTO Services (name, description, base_path, cpu_intensity) VALUES (?,?,?,?)",
+            (body["name"], body.get("description",""), body["base_path"], body.get("cpu_intensity","medium")),
+        )
+        c.commit()
+        row = c.execute("SELECT * FROM Services WHERE idService=?", (cur.lastrowid,)).fetchone()
+    return dict(row)
+
+
+@app.put("/cfg/services/{sid}")
+async def cfg_update_service(sid: int, request: Request):
+    body = await request.json()
+    with _cfg_db() as c:
+        c.execute(
+            "UPDATE Services SET name=?, description=?, base_path=?, cpu_intensity=? WHERE idService=?",
+            (body["name"], body.get("description",""), body["base_path"], body.get("cpu_intensity","medium"), sid),
+        )
+        c.commit()
+        row = c.execute("SELECT * FROM Services WHERE idService=?", (sid,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Service not found")
+    return dict(row)
+
+
+@app.delete("/cfg/services/{sid}")
+async def cfg_delete_service(sid: int):
+    with _cfg_db() as c:
+        c.execute("DELETE FROM Services WHERE idService=?", (sid,))
+        c.commit()
+    return {"deleted": sid}
+
+
+@app.get("/cfg/machines")
+async def cfg_get_machines():
+    with _cfg_db() as c:
+        rows = c.execute("SELECT * FROM Machines ORDER BY idMachine").fetchall()
+    return [dict(r) for r in rows]
+
+
+@app.post("/cfg/machines")
+async def cfg_create_machine(request: Request):
+    body = await request.json()
+    with _cfg_db() as c:
+        cur = c.execute(
+            "INSERT INTO Machines (hostname, ip_address, ssh_port, description) VALUES (?,?,?,?)",
+            (body["hostname"], body["ip_address"], body.get("ssh_port", 22), body.get("description","")),
+        )
+        c.commit()
+        row = c.execute("SELECT * FROM Machines WHERE idMachine=?", (cur.lastrowid,)).fetchone()
+    return dict(row)
+
+
+@app.delete("/cfg/machines/{mid}")
+async def cfg_delete_machine(mid: int):
+    with _cfg_db() as c:
+        c.execute("DELETE FROM Machines WHERE idMachine=?", (mid,))
+        c.commit()
+    return {"deleted": mid}
+
+
+@app.get("/cfg/pools")
+async def cfg_get_pools():
+    with _cfg_db() as c:
+        pools = c.execute("""
+            SELECT p.*, s.name AS service_name
+            FROM Pools p LEFT JOIN Services s ON s.idService=p.service_id
+            ORDER BY p.idPool
+        """).fetchall()
+        result = []
+        for p in pools:
+            d = dict(p)
+            members = c.execute("""
+                SELECT pm.idPoolMember, pm.weight,
+                       si.idInstance, si.port, si.status,
+                       m.hostname, m.ip_address
+                FROM PoolMembers pm
+                JOIN ServiceInstances si ON si.idInstance=pm.instance_id
+                JOIN Machines m ON m.idMachine=si.machine_id
+                WHERE pm.pool_id=?
+            """, (d["idPool"],)).fetchall()
+            d["members"] = [dict(mem) for mem in members]
+            rules = c.execute("SELECT * FROM AutoscalingRules WHERE pool_id=?", (d["idPool"],)).fetchall()
+            d["autoscaling_rules"] = [dict(r) for r in rules]
+            result.append(d)
+    return result
+
+
+@app.post("/cfg/pools")
+async def cfg_create_pool(request: Request):
+    body = await request.json()
+    with _cfg_db() as c:
+        cur = c.execute(
+            "INSERT INTO Pools (name, service_id, algorithm, description) VALUES (?,?,?,?)",
+            (body["name"], body["service_id"], body.get("algorithm","round_robin"), body.get("description","")),
+        )
+        pool_id = cur.lastrowid
+        if body.get("scale_out_threshold"):
+            c.execute(
+                "INSERT INTO AutoscalingRules (pool_id, metric_type, threshold, action, cooldown_seconds, min_instances, max_instances) VALUES (?,?,?,?,?,?,?)",
+                (pool_id, body.get("metric_type","cpu_percent"), body["scale_out_threshold"],
+                 "scale_out", body.get("cooldown_seconds",60), body.get("min_instances",1), body.get("max_instances",4)),
+            )
+        c.commit()
+        row = c.execute("SELECT * FROM Pools WHERE idPool=?", (pool_id,)).fetchone()
+    return dict(row)
+
+
+@app.put("/cfg/pools/{pid}")
+async def cfg_update_pool(pid: int, request: Request):
+    body = await request.json()
+    with _cfg_db() as c:
+        c.execute(
+            "UPDATE Pools SET name=?, service_id=?, algorithm=?, description=? WHERE idPool=?",
+            (body["name"], body["service_id"], body.get("algorithm","round_robin"), body.get("description",""), pid),
+        )
+        c.commit()
+        row = c.execute("SELECT * FROM Pools WHERE idPool=?", (pid,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Pool not found")
+    return dict(row)
+
+
+@app.delete("/cfg/pools/{pid}")
+async def cfg_delete_pool(pid: int):
+    with _cfg_db() as c:
+        c.execute("DELETE FROM AutoscalingRules WHERE pool_id=?", (pid,))
+        c.execute("DELETE FROM PoolMembers WHERE pool_id=?", (pid,))
+        c.execute("DELETE FROM Pools WHERE idPool=?", (pid,))
+        c.commit()
+    return {"deleted": pid}
+
+
+@app.post("/cfg/pools/{pid}/members")
+async def cfg_add_pool_member(pid: int, request: Request):
+    body = await request.json()
+    with _cfg_db() as c:
+        c.execute(
+            "INSERT OR IGNORE INTO PoolMembers (pool_id, instance_id, weight) VALUES (?,?,?)",
+            (pid, body["instance_id"], body.get("weight",1)),
+        )
+        c.commit()
+    return {"pool_id": pid, "instance_id": body["instance_id"]}
+
+
+@app.delete("/cfg/pools/{pid}/members/{iid}")
+async def cfg_remove_pool_member(pid: int, iid: int):
+    with _cfg_db() as c:
+        c.execute("DELETE FROM PoolMembers WHERE pool_id=? AND instance_id=?", (pid, iid))
+        c.commit()
+    return {"removed": iid}
+
+
+@app.get("/cfg/instances")
+async def cfg_get_instances():
+    with _cfg_db() as c:
+        rows = c.execute("""
+            SELECT si.*, s.name AS service_name, m.hostname, m.ip_address
+            FROM ServiceInstances si
+            LEFT JOIN Services s ON s.idService=si.service_id
+            LEFT JOIN Machines m ON m.idMachine=si.machine_id
+            ORDER BY si.idInstance
+        """).fetchall()
+    return [dict(r) for r in rows]
+
+
+@app.get("/cfg/machine_load")
+async def cfg_machine_load():
+    results = []
+    try:
+        async with httpx.AsyncClient(
+            base_url="http://docker",
+            transport=httpx.AsyncHTTPTransport(uds="/var/run/docker.sock"),
+            timeout=5.0,
+        ) as docker:
+            resp = await docker.get("/containers/json")
+            running = {c["Names"][0].lstrip("/"): c for c in resp.json() if c.get("Names")}
+            for name, port in MANAGED_CONTAINERS.items():
+                if name in running:
+                    cid = running[name]["Id"][:12]
+                    try:
+                        st = await docker.get(f"/containers/{name}/stats?stream=false")
+                        s = st.json()
+                        cpu_d = s["cpu_stats"]["cpu_usage"]["total_usage"] - s["precpu_stats"]["cpu_usage"]["total_usage"]
+                        sys_d = s["cpu_stats"]["system_cpu_usage"] - s["precpu_stats"]["system_cpu_usage"]
+                        n_cpu = s["cpu_stats"].get("online_cpus", 1)
+                        cpu_pct = (cpu_d / sys_d) * n_cpu * 100 if sys_d > 0 else 0.0
+                        mem_u = s["memory_stats"].get("usage", 0)
+                        mem_l = s["memory_stats"].get("limit", 1)
+                        results.append({"name": name, "port": port, "status": "running", "container_id": cid,
+                                        "cpu_pct": round(cpu_pct, 2), "mem_pct": round(mem_u/mem_l*100, 2),
+                                        "mem_mb": round(mem_u/1024/1024, 1)})
+                    except Exception:
+                        results.append({"name": name, "port": port, "status": "running", "container_id": cid,
+                                        "cpu_pct": 0, "mem_pct": 0, "mem_mb": 0})
+                else:
+                    results.append({"name": name, "port": port, "status": "stopped",
+                                    "container_id": None, "cpu_pct": 0, "mem_pct": 0, "mem_mb": 0})
+    except Exception:
+        for name, port in MANAGED_CONTAINERS.items():
+            results.append({"name": name, "port": port, "status": "unknown",
+                            "container_id": None, "cpu_pct": 0, "mem_pct": 0, "mem_mb": 0})
+    return results
+
+
+@app.get("/cfg/latency")
+async def cfg_latency():
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        rows = conn.execute("""
+            SELECT endpoint,
+                   COUNT(*) AS total,
+                   ROUND(AVG(total_time)*1000, 1) AS avg_ms,
+                   ROUND(MIN(total_time)*1000, 1) AS min_ms,
+                   ROUND(MAX(total_time)*1000, 1) AS max_ms,
+                   ROUND(AVG(CASE WHEN success=1 THEN 1.0 ELSE 0 END)*100, 1) AS success_rate
+            FROM (SELECT * FROM requests ORDER BY created_at DESC LIMIT 200)
+            GROUP BY endpoint ORDER BY avg_ms DESC
+        """).fetchall()
+    finally:
+        conn.close()
+    return [{"endpoint": r[0], "total": r[1], "avg_ms": r[2],
+             "min_ms": r[3], "max_ms": r[4], "success_rate": r[5]} for r in rows]
+
+
 # Core proxy helper  (retries across healthy servers)
 async def _proxy(
     *,
