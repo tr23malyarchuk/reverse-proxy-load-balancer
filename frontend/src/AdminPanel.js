@@ -50,35 +50,83 @@ function useAdminData() {
 
 function BarChart({ data, colors }) {
   if (!data || !data.length) return <div className="ap-empty-chart">Немає даних</div>;
+
   const max = Math.max(...data.map(d => d.value), 1);
-  const W = 100, H = 50;
-  const gap = W / data.length;
-  const barW = Math.min(20, gap - 4);
+
+  // Fixed pixel dimensions — viewBox scales to container via CSS
+  const W = 320;
+  const H = 120;          // bar area height
+  const LABEL_H = 72;     // space below bars for vertical labels
+  const TOP_PAD = 18;     // space above bars for value labels
+  const TOTAL_H = TOP_PAD + H + LABEL_H;
+
+  const count = data.length;
+  const gap = W / count;
+  const barW = Math.max(6, Math.min(36, gap * 0.55));
 
   return (
-    <svg viewBox={`0 0 ${W} ${H + 25}`} className="ap-bar-svg" style={{ width: '100%', height: 'auto' }}>
+    <svg
+      viewBox={`0 0 ${W} ${TOTAL_H}`}
+      className="ap-bar-svg"
+      style={{ width: "100%", height: "auto" }}
+    >
       {data.map((d, i) => {
-        const barH = Math.max(2, (d.value / max) * H);
-        const x = i * gap + (gap - barW) / 2;
+        const barH = Math.max(3, (d.value / max) * H);
+        const barX = i * gap + (gap - barW) / 2;
+        const barY = TOP_PAD + H - barH;
+        const centerX = barX + barW / 2;
         const color = colors ? colors[i % colors.length] : "#3b82f6";
+
+        // Format value: if float keep 3 decimals, otherwise integer
+        const displayVal = Number.isInteger(d.value)
+          ? d.value
+          : d.value.toFixed(3);
+
         return (
           <g key={i}>
+            {/* Bar */}
             <rect
-              x={x} y={H - barH} width={barW} height={barH}
-              rx="2" fill={color} opacity="0.85"
+              x={barX} y={barY}
+              width={barW} height={barH}
+              rx="3" fill={color} opacity="0.85"
             />
-            <text 
-              x={x + barW / 2 + 3} y={H + 8} 
-              textAnchor="start" 
-              fontSize="6" 
-              fill="#6b7280"
-              transform={`rotate(45, ${x + barW / 2 + 3}, ${H + 8})`}
+
+            {/* Value label above bar */}
+            <text
+              x={centerX}
+              y={barY - 4}
+              textAnchor="middle"
+              fontSize="9"
+              fontFamily="'JetBrains Mono', monospace"
+              fill={color}
+              opacity="0.95"
+            >
+              {displayVal}
+            </text>
+
+            {/* Category label — vertical, centred under bar */}
+            <text
+              x={centerX}
+              y={TOP_PAD + H + 6}
+              textAnchor="end"
+              dominantBaseline="middle"
+              fontSize="9"
+              fontFamily="'JetBrains Mono', monospace"
+              fill="#9ca3af"
+              transform={`rotate(-90, ${centerX}, ${TOP_PAD + H + 6})`}
             >
               {d.label}
             </text>
           </g>
         );
       })}
+
+      {/* Baseline */}
+      <line
+        x1={0} y1={TOP_PAD + H}
+        x2={W} y2={TOP_PAD + H}
+        stroke="#374151" strokeWidth="1"
+      />
     </svg>
   );
 }
