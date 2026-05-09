@@ -123,15 +123,19 @@ def log_request(
 class BackendServer:
     """One running container instance."""
 
-    def __init__(self, name: str, port: int) -> None:
+    def __init__(self, name: str, port: int, ip: str = "127.0.0.1") -> None:
         self.name = name
         self.port = port
-        self.url = f"http://127.0.0.1:{port}"
+        self.ip = ip
+        # Use the container's real IP on the lb-net network (port 8081 inside),
+        # falling back to host-mapped port if IP is not yet known.
+        self.url = f"http://{ip}:8081" if ip != "127.0.0.1" else f"http://127.0.0.1:{port}"
         self.active_connections: int = 0
 
     def to_dict(self) -> Dict[str, object]:
         return {
             "name": self.name,
+            "ip": self.ip,
             "url": self.url,
             "active_connections": self.active_connections,
         }
@@ -167,36 +171,45 @@ class DynamicPool:
             await self._docker_client.aclose()
 
     # Internal refresh
-    async def _running_container_names(self) -> List[str]:
-        """Ask Docker which of our managed containers are currently running."""
+    async def _running_container_names(self) -> List[Tuple[str, str]]:
+        """Ask Docker which of our managed containers are currently running.
+
+        Returns a list of (name, ip) tuples where ip is the container's
+        real IP address on the lb-net Docker network.
+        """
         try:
             resp = await self._docker_client.get("/containers/json")
             resp.raise_for_status()
-            running: List[str] = []
+            result: List[Tuple[str, str]] = []
             for c in resp.json():
                 names = [n.lstrip("/") for n in c.get("Names", [])]
                 for n in names:
                     if n in MANAGED_CONTAINERS:
-                        running.append(n)
-            return running
+                        # Try to get the container IP from lb-net first,
+                        # fall back to any available network IP.
+                        networks = c.get("NetworkSettings", {}).get("Networks", {})
+                        ip = "127.0.0.1"
+                        if "lb-net" in networks:
+                            ip = networks["lb-net"].get("IPAddress", "127.0.0.1") or "127.0.0.1"
+                        elif networks:
+                            first_net = next(iter(networks.values()))
+                            ip = first_net.get("IPAddress", "127.0.0.1") or "127.0.0.1"
+                        result.append((n, ip))
+            return result
         except Exception as exc:
             print(f"[pool] Docker query failed: {exc}")
             return []
 
     async def _is_healthy(self, server: BackendServer) -> bool:
-        """
-        Check that the container's HTTP server is reachable.
-
-        The managed image (tr23malyarchuk/pa-tr23malyarchuk) does not expose
-        a /health endpoint, so we simply open a TCP connection to the port.
-        Any HTTP response (even 404) means the server is up and accepting
-        connections; a connection error means it is not.
-        """
+        """Check that the container's HTTP server is reachable via its real IP."""
         import asyncio as _asyncio
+        # If we have a real container IP, connect to port 8081 directly.
+        # Otherwise fall back to the host-mapped port.
+        check_host = server.ip if server.ip != "127.0.0.1" else "127.0.0.1"
+        check_port = 8081 if server.ip != "127.0.0.1" else server.port
         try:
-            # asyncio.open_connection is a pure TCP check – no HTTP needed.
             _reader, _writer = await _asyncio.wait_for(
-                _asyncio.open_connection("127.0.0.1", server.port),
+                _asyncio.open_connection(check_host, check_port),
                 timeout=3.0,
             )
             _writer.close()
@@ -209,14 +222,21 @@ class DynamicPool:
             return False
 
     async def _refresh(self) -> None:
-        names = await self._running_container_names()
+        name_ip_pairs = await self._running_container_names()
 
-        # Build candidate list preserving existing objects (keeps active_connections)
         existing = {s.name: s for s in self._servers}
         candidates: List[BackendServer] = []
-        for name in names:
+        for name, ip in name_ip_pairs:
             port = MANAGED_CONTAINERS[name]
-            srv = existing.get(name) or BackendServer(name, port)
+            existing_srv = existing.get(name)
+            # Reuse existing object to preserve active_connections,
+            # but update IP if it changed.
+            if existing_srv:
+                existing_srv.ip = ip
+                existing_srv.url = f"http://{ip}:8081" if ip != "127.0.0.1" else f"http://127.0.0.1:{port}"
+                srv = existing_srv
+            else:
+                srv = BackendServer(name, port, ip)
             candidates.append(srv)
 
         # Health-check all candidates concurrently

@@ -11,6 +11,7 @@
 set -euo pipefail
 
 IMAGE_NAME="tr23malyarchuk/pa-tr23malyarchuk:latest"
+NETWORK_NAME="lb-net"
 MAX_BUSY_COUNT=2     # minutes busy before scale-out
 MAX_IDLE_COUNT=10     # minutes idle before shutdown
 
@@ -44,9 +45,12 @@ launch_container() {
     local core=${CPU_CORE[$name]}
     local port=${PORT[$name]}
     echo "[scriptA] Starting $name  (CPU core $core, port $port)..."
+    # Ensure network exists
+    docker network create "$NETWORK_NAME" 2>/dev/null || true
     docker run -d \
         --name "$name" \
         --cpuset-cpus="$core" \
+        --network "$NETWORK_NAME" \
         -p "$port:8081" \
         "$IMAGE_NAME" > /dev/null
     echo "[scriptA] $name is up."
@@ -232,3 +236,4 @@ while true; do
 
     sleep 120
 done
+
