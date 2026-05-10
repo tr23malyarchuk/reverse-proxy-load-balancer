@@ -5,7 +5,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Системные зависимости: ffmpeg и poppler-utils для pdf2image
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ffmpeg poppler-utils unrar-free && \
     rm -rf /var/lib/apt/lists/*
@@ -15,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8081"]
+CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

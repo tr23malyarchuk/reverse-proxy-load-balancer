@@ -138,7 +138,7 @@ SEED_DATA = [
     (
         "INSERT OR IGNORE INTO Services (idService, name, description, base_path, cpu_intensity) VALUES (?,?,?,?,?)",
         [
-            (1, "wav2mp3",  "Конвертація WAV у MP3",   "/file-request", "medium"),
+            (1, "wav2mp3",  "Конвертація WAV у MP3",   "/wav2mp3", "medium"),
             (2, "pdf2png",  "Конвертація PDF у PNG",   "/pdf2png",      "high"),
             (3, "webp2png", "Конвертація WEBP у PNG",  "/webp2png",     "low"),
             (4, "rar2zip",  "Перепакування RAR у ZIP", "/ziprar",       "medium"),

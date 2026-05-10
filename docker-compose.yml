@@ -1,0 +1,36 @@
+version: '3.8'
+
+networks:
+  lb-net:
+    driver: bridge
+    name: lb-net # docker network
+
+services:
+  # Load balancer
+  backend:
+    build: ./backend
+    container_name: lb
+    ports:
+      - "8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./backend/data:/app/data
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    networks:
+      - lb-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  #React + NGINX
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    ports:
+      - "80:80"
+    networks:
+      - lb-net
+    depends_on:
+      - backend
+    restart: unless-stopped

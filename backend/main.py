@@ -121,16 +121,12 @@ def log_request(
 
 # Backend model
 class BackendServer:
-    """One running container instance."""
-
-    def __init__(self, name: str, port: int, ip: str = "127.0.0.1") -> None:
+    def __init__(self, name: str, container_name: str, host_port: int) -> None:
         self.name = name
-        self.port = port
-        self.ip = ip
-        # Use the container's real IP on the lb-net network (port 8081 inside),
-        # falling back to host-mapped port if IP is not yet known.
-        self.url = f"http://{ip}:8081" if ip != "127.0.0.1" else f"http://127.0.0.1:{port}"
-        self.active_connections: int = 0
+        self.container_name = container_name  # srv1, srv2, etc.
+        self.host_port = host_port
+        self.url = f"http://{container_name}:8000"
+        self.active_connections = 0
 
     def to_dict(self) -> Dict[str, object]:
         return {
@@ -172,71 +168,42 @@ class DynamicPool:
 
     # Internal refresh
     async def _running_container_names(self) -> List[Tuple[str, str]]:
-        """Ask Docker which of our managed containers are currently running.
-
-        Returns a list of (name, ip) tuples where ip is the container's
-        real IP address on the lb-net Docker network.
-        """
         try:
             resp = await self._docker_client.get("/containers/json")
             resp.raise_for_status()
             result: List[Tuple[str, str]] = []
             for c in resp.json():
                 names = [n.lstrip("/") for n in c.get("Names", [])]
-                for n in names:
-                    if n in MANAGED_CONTAINERS:
-                        # Try to get the container IP from lb-net first,
-                        # fall back to any available network IP.
-                        networks = c.get("NetworkSettings", {}).get("Networks", {})
-                        ip = "127.0.0.1"
-                        if "lb-net" in networks:
-                            ip = networks["lb-net"].get("IPAddress", "127.0.0.1") or "127.0.0.1"
-                        elif networks:
-                            first_net = next(iter(networks.values()))
-                            ip = first_net.get("IPAddress", "127.0.0.1") or "127.0.0.1"
-                        result.append((n, ip))
+                for container_name in names:
+                    if container_name in MANAGED_CONTAINERS:
+                        # Возвращаем имя контейнера как идентификатор
+                        result.append((container_name, container_name))
             return result
         except Exception as exc:
             print(f"[pool] Docker query failed: {exc}")
             return []
 
     async def _is_healthy(self, server: BackendServer) -> bool:
-        """Check that the container's HTTP server is reachable via its real IP."""
-        import asyncio as _asyncio
-        # If we have a real container IP, connect to port 8081 directly.
-        # Otherwise fall back to the host-mapped port.
-        check_host = server.ip if server.ip != "127.0.0.1" else "127.0.0.1"
-        check_port = 8081 if server.ip != "127.0.0.1" else server.port
         try:
-            _reader, _writer = await _asyncio.wait_for(
-                _asyncio.open_connection(check_host, check_port),
-                timeout=3.0,
-            )
-            _writer.close()
-            try:
-                await _writer.wait_closed()
-            except Exception:
-                pass
-            return True
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                r = await client.get(f"{server.url}/health")
+                return r.status_code == 200
         except Exception:
             return False
 
     async def _refresh(self) -> None:
-        name_ip_pairs = await self._running_container_names()
-
+        name_pairs = await self._running_container_names()  # (name, name)
+        
         existing = {s.name: s for s in self._servers}
         candidates: List[BackendServer] = []
-        for name, ip in name_ip_pairs:
+        for name, container_name in name_pairs:
             port = MANAGED_CONTAINERS[name]
             existing_srv = existing.get(name)
-            # Reuse existing object to preserve active_connections,
-            # but update IP if it changed.
             if existing_srv:
-                existing_srv.ip = ip
-                existing_srv.url = f"http://{ip}:8081" if ip != "127.0.0.1" else f"http://127.0.0.1:{port}"
+                existing_srv.url = f"http://{container_name}:8000"
                 srv = existing_srv
             else:
-                srv = BackendServer(name, port, ip)
+                srv = BackendServer(name, container_name, port)
             candidates.append(srv)
 
         # Health-check all candidates concurrently
@@ -820,7 +787,7 @@ async def _proxy(
 
 
 # Public conversion endpoints
-@app.post("/file-request", summary="WAV → MP3")
+@app.post("/wav2mp3", summary="WAV → MP3")
 async def wav_to_mp3(
     file: UploadFile = File(...),
     algorithm: str = Form("round_robin"),
@@ -831,7 +798,7 @@ async def wav_to_mp3(
         algorithm=algorithm,
         client_ip=client_ip,
         backend_path="/convert/wav-to-mp3",
-        endpoint_name="/file-request",
+        endpoint_name="/wav2mp3",
         default_content_type="audio/wav",
         response_media_type="audio/mpeg",
         response_filename_suffix=".mp3",
@@ -877,26 +844,7 @@ async def webp2png(
     )
 
 
-@app.post("/rar2zip", summary="RAR → ZIP")
-async def rar2zip(
-    file: UploadFile = File(...),
-    algorithm: str = Form("round_robin"),
-    client_ip: Optional[str] = Form(None),
-):
-    return await _proxy(
-        file=file,
-        algorithm=algorithm,
-        client_ip=client_ip,
-        backend_path="/convert/rar-to-zip",
-        endpoint_name="/rar2zip",
-        default_content_type="application/vnd.rar",
-        response_media_type="application/zip",
-        response_filename_suffix=".zip",
-        timeout=300.0,
-    )
-
-
-@app.post("/ziprar", summary="RAR → ZIP (alias)")
+@app.post("/ziprar", summary="RAR → ZIP")
 async def ziprar(
     file: UploadFile = File(...),
     algorithm: str = Form("round_robin"),
@@ -913,4 +861,3 @@ async def ziprar(
         response_filename_suffix=".zip",
         timeout=300.0,
     )
-

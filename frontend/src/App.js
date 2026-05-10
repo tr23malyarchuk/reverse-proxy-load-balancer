@@ -20,7 +20,7 @@ const SERVICES = [
     description: "Конвертація аудіофайлу WAV у MP3.",
     color: "#2196F3",
     accept: ".wav,.wave,audio/wav",
-    endpoint: "/file-request",
+    endpoint: "/wav2mp3",
     filename: "result.mp3",
   },
   {

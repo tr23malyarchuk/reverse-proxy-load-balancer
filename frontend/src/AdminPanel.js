@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import "./AdminPanel.css";
 
-const API = "";
+const API = "http://localhost:8000";
 const ALGORITHMS = ["round_robin","random","least_connections","ip_hash","power_of_two"];
 const CPU_INTENSITIES = ["low","medium","high"];
 const METRIC_TYPES = ["cpu_percent","active_connections","latency_ms"];
@@ -210,7 +210,7 @@ function ServicesPanel() {
             <Input value={form.description} onChange={e => setForm({...form, description: e.target.value})} placeholder="Конвертація WAV у MP3" />
           </Field>
           <Field label="Базовий шлях *">
-            <Input value={form.base_path} onChange={e => setForm({...form, base_path: e.target.value})} placeholder="/file-request" />
+            <Input value={form.base_path} onChange={e => setForm({...form, base_path: e.target.value})} placeholder="/wav2mp3" />
           </Field>
           <Field label="Docker-образ">
             <Input value={form.docker_image} onChange={e => setForm({...form, docker_image: e.target.value})} placeholder="tr23malyarchuk/pa-tr23malyarchuk:latest" />

@@ -29,14 +29,14 @@ export const options = {
   scenarios: {
     wav2mp3_requests: {
       executor: 'per-vu-iterations',
-      vus: 5,
+      vus: 20,
       iterations: 50,
       maxDuration: '5m',
       exec: 'wav2mp3Scenario',
     },
     pdf2png_requests: {
       executor: 'per-vu-iterations',
-      vus: 5,
+      vus: 20,
       iterations: 50,
       startTime: '5s',
       maxDuration: '5m',
@@ -44,7 +44,7 @@ export const options = {
     },
     webp2png_requests: {
       executor: 'per-vu-iterations',
-      vus: 5,
+      vus: 20,
       iterations: 50,
       startTime: '10s',
       maxDuration: '5m',
@@ -52,7 +52,7 @@ export const options = {
     },
     rar2zip_requests: {
       executor: 'per-vu-iterations',
-      vus: 5,
+      vus: 20,
       iterations: 50,
       startTime: '15s',
       maxDuration: '5m',
@@ -64,7 +64,7 @@ export const options = {
 // WAV -> MP3
 export function wav2mp3Scenario() {
   const algo = pickAlgorithm();
-  const res = http.post(`${BASE_URL}/file-request`, {
+  const res = http.post(`${BASE_URL}/wav2mp3`, {
     file: http.file(wavFile, 'sample.wav', 'audio/wav'),
     algorithm: algo,
   });
@@ -104,4 +104,3 @@ export function rar2zipScenario() {
   check(res, { 'rar2zip status is 200': (r) => r.status === 200 });
   sleep(0.1);
 }
-
