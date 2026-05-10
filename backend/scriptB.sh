@@ -1,64 +1,64 @@
 #!/bin/bash
-# scriptB.sh  –  synthetic load generator for testing
+# scriptB.sh  –  load generator for demonstrating scaling
 #
-# Sends /sort?size=N requests to whichever containers are currently running.
-# By default uses ALL running managed containers (round-robin across them)
-# so that main.py's balancing logic can be observed.
+# Sends real conversion requests through the load balancer (main.py on port 8000).
+# This way main.py distributes load across srv1..srv4,
+# and scriptA sees CPU load and scales out.
 #
 # Usage:
-#   bash scriptB.sh               # default: size=1000000, interval 5-10 s
-#   bash scriptB.sh 500000 2 8    # size=500000, interval 2-8 s
+#   bash scriptB.sh               # default settings
+#   bash scriptB.sh 1 3           # interval 1-3 seconds (faster)
 
 set -euo pipefail
 
-SORT_SIZE="${1:-1000000}"
-MIN_SLEEP="${2:-5}"
-MAX_SLEEP="${3:-10}"
+MIN_SLEEP="${1:-1}"
+MAX_SLEEP="${2:-3}"
 
-declare -A PORT=( [srv1]=8081 [srv2]=8082 [srv3]=8083 [srv4]=8084 )
-CONTAINER_ORDER=( srv1 srv2 srv3 srv4 )
+BALANCER="http://localhost:8000"
+DATA_DIR="$(dirname "$0")/data/input"
 
-container_running() {
-    docker ps --format '{{.Names}}' | grep -q "^$1\$"
+WAV="${DATA_DIR}/sample.wav"
+PDF="${DATA_DIR}/sample.pdf"
+WEBP="${DATA_DIR}/sample.webp"
+RAR="${DATA_DIR}/sample.rar"
+
+ALGORITHMS=( round_robin random least_connections ip_hash power_of_two )
+ENDPOINTS=( "/file-request" "/pdf2png" "/webp2png" "/ziprar" )
+FILES=( "$WAV" "$PDF" "$WEBP" "$RAR" )
+
+req_count=0
+
+pick_algo() {
+    echo "${ALGORITHMS[$(( RANDOM % ${#ALGORITHMS[@]} ))]}"
 }
 
-get_running_containers() {
-    local running=()
-    for name in "${CONTAINER_ORDER[@]}"; do
-        container_running "$name" && running+=("$name")
-    done
-    echo "${running[@]:-}"
-}
-
-rr_index=0
-
-next_container_rr() {
-    local -a running=("$@")
-    local count=${#running[@]}
-    (( count == 0 )) && { echo ""; return; }
-    echo "${running[$(( rr_index % count ))]}"
-    rr_index=$(( rr_index + 1 ))
-}
-
-echo "[scriptB] Load generator started. sort_size=$SORT_SIZE, interval=${MIN_SLEEP}-${MAX_SLEEP}s"
-echo "[scriptB] Press Ctrl+C to stop."
+echo "[scriptB] Load generator started."
+echo "[scriptB] Sending requests to balancer at ${BALANCER}"
+echo "[scriptB] Interval: ${MIN_SLEEP}-${MAX_SLEEP}s. Press Ctrl+C to stop."
 echo ""
 
 while true; do
-    read -ra running <<< "$(get_running_containers)"
+    # Pick random endpoint + file pair
+    idx=$(( RANDOM % ${#ENDPOINTS[@]} ))
+    endpoint="${ENDPOINTS[$idx]}"
+    file="${FILES[$idx]}"
+    algo=$(pick_algo)
 
-    if (( ${#running[@]} == 0 )); then
-        echo "[scriptB] No running containers – waiting..."
-        sleep 5
+    if [[ ! -f "$file" ]]; then
+        echo "[scriptB] File not found: $file – skipping"
+        sleep 2
         continue
     fi
 
-    target=$(next_container_rr "${running[@]}")
-    port=${PORT[$target]}
+    req_count=$(( req_count + 1 ))
+    echo "[scriptB] #${req_count}  ${endpoint}  algo=${algo}"
 
-    echo "[scriptB] → $target (port $port)  /sort?size=$SORT_SIZE"
-    curl -s --max-time 120 \
-        "http://localhost:${port}/sort?size=${SORT_SIZE}" > /dev/null &
+    curl -s --max-time 60 \
+        -X POST "${BALANCER}${endpoint}" \
+        -F "file=@${file}" \
+        -F "algorithm=${algo}" \
+        -o /dev/null \
+        -w "[scriptB] → HTTP %{http_code}  time=%{time_total}s\n" &
 
     sleep $(( RANDOM % (MAX_SLEEP - MIN_SLEEP + 1) + MIN_SLEEP ))
 done
