@@ -39,6 +39,63 @@ This project demonstrates efficient request distribution across multiple backend
 
 ---
 
+## 🖥 Interface
+
+### User Interface
+
+Users can upload files and convert them through an intuitive tile-based interface:
+
+![User Interface](data/img/User.png)
+
+### Admin Panel
+
+Administrators can monitor system health, view container statistics, and manage scaling rules:
+
+![Admin Panel](data/img/Admin.png)
+
+---
+
+## 📊 Use Case Diagram
+
+The diagram below shows the main interactions between users, administrators, and the system:
+
+![Use Case Diagram](data/img/UseCase.png)
+
+**User actions:**
+- Upload files for conversion
+- Select conversion type (WAV→MP3, PDF→PNG, WEBP→PNG, RAR→ZIP)
+- Download converted files
+
+**Admin actions:**
+- Monitor server load and health
+- View running container status
+- Configure autoscaling rules
+- Register new services and machines
+
+**System behavior:**
+- Automatically scale containers based on CPU load
+- Distribute requests across healthy servers
+- Log all requests for statistical analysis
+
+---
+
+## 🗂 Database Schema (Conceptual)
+
+The database schema consists of seven main tables that store information about services, machines, pools, instances, and request statistics:
+
+![ER Diagram](data/img/ER.png)
+
+**Main tables:**
+- `Services` – registered conversion services with their endpoints
+- `Machines` – physical or virtual machines running containers
+- `Pools` – groups of service instances with balancing algorithms
+- `ServiceInstances` – individual running containers
+- `PoolMembers` – links between pools and instances
+- `AutoscalingRules` – scaling conditions and thresholds
+- `requests` – detailed logs of all conversion requests
+
+---
+
 ## 🚀 Main Commands
 
 ### 🐍 Load Balancer (main.py)
@@ -127,44 +184,6 @@ docker stop srv1 srv2 srv3 srv4 && docker rm srv1 srv2 srv3 srv4
 ```
 
 ---
-
-## 🗂 Database Schema (Conceptual)
-
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│    Services     │     │     Pools       │     │   Machines      │
-├─────────────────┤     ├─────────────────┤     ├─────────────────┤
-│ idService (PK)  │────<│ service_id (FK) │     │ idMachine (PK)  │
-│ name            │     │ idPool (PK)     │     │ hostname        │
-│ base_path       │     │ name            │     │ ip_address      │
-│ cpu_intensity   │     │ algorithm       │     │ ssh_port        │
-└─────────────────┘     └────────┬────────┘     └────────┬────────┘
-         │                       │                       │
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│ ServiceInstances│     │  PoolMembers    │     │ AutoscalingRules│
-├─────────────────┤     ├─────────────────┤     ├─────────────────┤
-│ idInstance (PK) │     │ idPoolMember(PK)│     │ idRule (PK)     │
-│ service_id (FK) │────<│ pool_id (FK)    │     │ pool_id (FK)    │
-│ machine_id (FK) │────<│ instance_id(FK) │     │ metric_type     │
-│ container_id    │     │ weight          │     │ threshold       │
-│ port            │     └─────────────────┘     │ min_instances   │
-│ status          │                             │ max_instances   │
-└─────────────────┘                             └─────────────────┘
-
-┌─────────────────┐
-│    requests     │  <- request statistics
-├─────────────────┤
-│ id (PK)         │
-│ algorithm       │
-│ server_name     │
-│ endpoint        │
-│ total_time      │
-│ success         │
-│ created_at      │
-└─────────────────┘
-```
 
 ## 📁 Project Structure
 
