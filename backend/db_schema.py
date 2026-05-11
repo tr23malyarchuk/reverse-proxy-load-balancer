@@ -21,7 +21,9 @@ CREATE TABLE IF NOT EXISTS Services (
     description   TEXT,
     base_path     TEXT    NOT NULL,
     cpu_intensity TEXT    NOT NULL DEFAULT 'medium'
-                  CHECK(cpu_intensity IN ('low','medium','high'))
+                  CHECK(cpu_intensity IN ('low','medium','high')),
+    docker_image  TEXT,
+    update_period TEXT
 );
 
 CREATE TABLE IF NOT EXISTS Pools (

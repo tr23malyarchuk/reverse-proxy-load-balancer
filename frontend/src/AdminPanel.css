@@ -26,6 +26,17 @@
   border-bottom: 1px solid var(--ap-border);
   background: var(--ap-bg2);
 }
+
+.ap-latency-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.ap-latency-row .ap-card {
+  flex: 1;
+}
+
 .ap-header-left { display: flex; align-items: center; gap: 10px; }
 .ap-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .ap-dot-green { background: #22c55e; box-shadow: 0 0 6px #22c55e88; animation: ap-pulse 2s infinite; }

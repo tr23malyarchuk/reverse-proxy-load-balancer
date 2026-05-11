@@ -581,6 +581,13 @@ function LatencyPanel() {
   const { data: latency, loading } = usePoll(latFn, 5000);
   const { data: statsData } = usePoll(statsFn, 5000);
 
+  const getRequestCountByEndpoint = () => {
+    return (latency || []).map(r => ({ 
+      label: r.endpoint.replace("/", ""), 
+      value: r.total || 0 
+    }));
+  };
+
   return (
     <div className="ap-panel">
       <SectionHeader title="Service Latency" />
@@ -592,15 +599,19 @@ function LatencyPanel() {
         <>
           <div className="ap-latency-row">
             <div className="ap-card ap-chart-card" style={{ flex: 2 }}>
-              <div className="ap-card-header"><span className="ap-section-title">Avg latency (мс) по endpoint</span></div>
+              <div className="ap-card-header">
+                <span className="ap-section-title">📊 Avg latency (мс) по endpoint</span>
+              </div>
               <BarChart
                 data={(latency||[]).map(r => ({ label: r.endpoint.replace("/",""), value: r.avg_ms || 0 }))}
-                colors={["#3b82f6","#22c55e","#f59e0b","#ef4444","#a78bfa"]}
+                colors={["#3b82f6","#22c55e","#f59e0b","#ef4444"]}
                 unit="ms"
               />
             </div>
             <div className="ap-card ap-chart-card" style={{ flex: 1 }}>
-              <div className="ap-card-header"><span className="ap-section-title">Avg latency по серверах (с)</span></div>
+              <div className="ap-card-header">
+                <span className="ap-section-title">⏱ Avg latency по серверах (с)</span>
+              </div>
               <BarChart
                 data={(statsData?.by_server||[]).map(r => ({ label: r.server, value: r.avg_s || 0 }))}
                 colors={["#f59e0b"]}
@@ -609,12 +620,40 @@ function LatencyPanel() {
             </div>
           </div>
 
-          <div className="ap-table-card">
+          <div className="ap-latency-row" style={{ marginTop: 16 }}>
+            <div className="ap-card ap-chart-card" style={{ flex: 1 }}>
+              <div className="ap-card-header">
+                <span className="ap-section-title">📈 Кількість запитів по сервісах</span>
+              </div>
+              <BarChart
+                data={(latency||[]).map(r => ({ label: r.endpoint.replace("/",""), value: r.total || 0 }))}
+                colors={["#22c55e","#3b82f6","#f59e0b","#a78bfa"]}
+                unit=""
+              />
+              <div className="ap-muted ap-small" style={{ textAlign: "center", marginTop: 8 }}>
+                Найбільше запитів отримує PDF→PNG (найбільш вимогливий до CPU)
+              </div>
+            </div>
+            <div className="ap-card ap-chart-card" style={{ flex: 1 }}>
+              <div className="ap-card-header">
+                <span className="ap-section-title">🎯 Успішність запитів (%)</span>
+              </div>
+              <BarChart
+                data={(latency||[]).map(r => ({ label: r.endpoint.replace("/",""), value: r.success_rate || 0 }))}
+                colors={["#22c55e","#3b82f6","#f59e0b","#ef4444"]}
+                unit="%"
+              />
+            </div>
+          </div>
+
+          <div className="ap-table-card" style={{ marginTop: 16 }}>
             <table className="ap-table">
-              <thead><tr>
-                <th>Endpoint</th><th>Запитів</th>
-                <th>Avg, мс</th><th>Min, мс</th><th>Max, мс</th><th>Success%</th>
-              </tr></thead>
+              <thead>
+                <tr>
+                  <th>Endpoint</th><th>Запитів</th>
+                  <th>Avg, мс</th><th>Min, мс</th><th>Max, мс</th><th>Success%</th>
+                </tr>
+              </thead>
               <tbody>
                 {(latency||[]).map((r, i) => (
                   <tr key={i}>
