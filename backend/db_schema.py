@@ -1,19 +1,9 @@
-"""
-db_schema.py  -  розширена реляційна схема БД
-===============================================
-Розширює існуючу requests.db новими таблицями
-згідно спроектованої архітектури.
-
-Використання:
-    python3 db_schema.py          # створити таблиці і наповнити базовими даними
-    python3 db_schema.py --reset  # скинути і перестворити (УВАГА: видаляє дані)
-"""
-
 import sqlite3
 import sys
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "data/requests.db"
+ROOT_DIR = Path(__file__).parent.parent
+DB_PATH = ROOT_DIR / "data" / "requests.db"
 
 
 DDL = """

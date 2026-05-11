@@ -1,16 +1,26 @@
 __pycache__/
 *.pyc
-tmp_conv/
-.env
-core_env/
+*.pyo
+*.pyd
+backend/__pycache__/
 
-tmp_rar2zip/
+backend/core_env/
+backend/venv/
+backend/.venv/
+
+backend/tmp_rar2zip/
+backend/tmp_conv/
+backend_tmp_conv/
 tmp/
 
+data/requests.db
 backend/data/requests.db
-data/database/*.csv
 
 frontend/node_modules/
-frontend/dist/
 frontend/build/
 
+.DS_Store
+.idea/
+.vscode/
+
+*.log

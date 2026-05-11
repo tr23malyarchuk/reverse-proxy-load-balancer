@@ -1,11 +1,3 @@
-"""
-admin.py  -  термінальна адмін-панель балансировщика
-=====================================================
-Використання:
-    python3 admin.py               # одноразовий вивід
-    watch -n 2 python3 admin.py    # оновлення кожні 2 секунди
-"""
-
 import sqlite3
 import time
 from pathlib import Path
@@ -13,7 +5,8 @@ from pathlib import Path
 import httpx
 
 BALANCER_URL = "http://localhost:8000"
-DB_PATH = Path(__file__).parent / "data/requests.db"
+ROOT_DIR = Path(__file__).parent.parent
+DB_PATH = ROOT_DIR / "data" / "requests.db"
 
 
 def fetch_servers() -> dict:

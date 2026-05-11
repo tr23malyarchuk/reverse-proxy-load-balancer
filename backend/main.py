@@ -1,16 +1,3 @@
-"""
-Reverse-Proxy Load Balancer
-============================
-Dynamically discovers backend containers (srv1-srv4) via the Docker socket
-and distributes conversion requests across all healthy instances.
-
-scriptA.sh is responsible for starting / stopping containers.
-This process just watches what is running and routes accordingly.
-
-Run:
-    uvicorn main:app --reload --port 8000
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -29,7 +16,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 # Configuration
-DB_PATH = Path(__file__).parent / "data/requests.db"
+ROOT_DIR = Path(__file__).parent.parent
+DB_PATH = ROOT_DIR / "data" / "requests.db"
 
 # Containers managed by scriptA.sh  →  their host ports
 MANAGED_CONTAINERS: Dict[str, int] = {

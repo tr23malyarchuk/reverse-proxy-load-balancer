@@ -1,10 +1,10 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 
-const wavFile  = open('data/input/sample.wav',  'b');
-const pdfFile  = open('data/input/sample.pdf',  'b');
-const webpFile = open('data/input/sample.webp', 'b');
-const rarFile  = open('data/input/sample.rar',  'b');
+const wavFile  = open('../data/sample.wav',  'b');
+const pdfFile  = open('../data/sample.pdf',  'b');
+const webpFile = open('../data/sample.webp', 'b');
+const rarFile  = open('../data/sample.rar',  'b');
 
 const BASE_URL = 'http://localhost:8000';
 
