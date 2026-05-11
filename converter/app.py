@@ -106,22 +106,3 @@ async def rar_to_zip(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"RAR error: {e}")
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
-
-
-
-@app.get("/sort")
-async def sort_load(size: int = 1_000_000):
-    """
-    CPU-intensive endpoint used by scriptB.sh for load testing.
-    Sorts a list of `size` random integers and returns basic stats.
-    """
-    import random
-    data = [random.randint(0, 1_000_000) for _ in range(size)]
-    data.sort()
-    return {
-        "size": size,
-        "min": data[0],
-        "max": data[-1],
-        "median": data[size // 2],
-    }
-

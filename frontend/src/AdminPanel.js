@@ -469,14 +469,22 @@ function PoolsPanel() {
 // PANEL: Machines Load
 // ─────────────────────────────────────────────────────────────────────────────
 function MachineLoadPanel() {
-  const fetchFn = useCallback(() => apiFetch("/cfg/machine_load").then(r => r.json()), []);
-  const { data: loads, loading } = usePoll(fetchFn, 4000);
+  const [loads, setLoads] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/cfg/machine_load')
+      .then(res => res.json())
+      .then(setLoads)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <div className="ap-panel">
       <SectionHeader title="Machines Load" />
       <p className="ap-description">
-        Поточне навантаження на CPU та RAM кожного керованого контейнера. Оновлюється кожні 4 секунди.
+        Поточне навантаження на CPU та RAM кожного керованого контейнера.
       </p>
       {loading ? <Spinner /> : (
         <>
@@ -520,29 +528,41 @@ function MachineLoadPanel() {
 // PANEL: Running Containers
 // ─────────────────────────────────────────────────────────────────────────────
 function ContainersPanel() {
-  const loadFn  = useCallback(() => apiFetch("/cfg/machine_load").then(r => r.json()), []);
-  const instFn  = useCallback(() => apiFetch("/cfg/instances").then(r => r.json()), []);
-  const { data: loads, loading } = usePoll(loadFn, 5000);
-  const { data: instances } = usePoll(instFn, 10000);
+  const [loads, setLoads] = useState([]);
+  const [instances, setInstances] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/cfg/machine_load').then(r => r.json()),
+      fetch('/cfg/instances').then(r => r.json())
+    ]).then(([loadsData, instancesData]) => {
+      setLoads(loadsData);
+      setInstances(instancesData);
+    }).catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
 
   const instMap = {};
-  (instances||[]).forEach(i => { instMap[i.container_id] = i; });
+  (instances || []).forEach(i => { instMap[i.container_id] = i; });
 
   return (
     <div className="ap-panel">
       <SectionHeader title="Running Containers" />
       <p className="ap-description">
-        Статус, версії та метадані всіх керованих Docker-контейнерів в реальному часі.
+        Статус, версії та метадані всіх керованих Docker-контейнерів.
       </p>
       {loading ? <Spinner /> : (
         <div className="ap-table-card">
           <table className="ap-table">
-            <thead><tr>
-              <th>Контейнер</th><th>Порт</th><th>Статус</th>
-              <th>Container ID</th><th>Образ</th><th>CPU%</th><th>RAM</th>
-            </tr></thead>
+            <thead>
+              <tr>
+                <th>Контейнер</th><th>Порт</th><th>Статус</th>
+                <th>Container ID</th><th>Образ</th><th>CPU%</th><th>RAM</th>
+              </tr>
+            </thead>
             <tbody>
-              {(loads||[]).map(l => {
+              {(loads || []).map(l => {
                 const inst = instMap[l.name] || instMap[l.container_id] || {};
                 return (
                   <tr key={l.name}>
@@ -676,7 +696,7 @@ export default function AdminPanel() {
 
       {connError && (
         <div className="ap-error-banner">
-          ⚠ Балансировщик недоступний на порту 8000. Запустіть uvicorn main:app --port 8000.
+          ⚠ Load balancer is unaccessible
         </div>
       )}
 
