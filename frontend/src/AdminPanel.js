@@ -679,14 +679,13 @@ export default function AdminPanel() {
 
   return (
     <div className="ap-root">
-      {/* Top status bar */}
       <div className="ap-header">
         <div className="ap-header-left">
           <div className={`ap-dot ${connected ? "ap-dot-green" : "ap-dot-red"}`} />
           <span className="ap-header-status">
             {connected
               ? `Configuration Server · ${serversData?.healthy_count ?? 0} live`
-              : "балансировщик недоступний"}
+              : "Load Balancer unavailable"}
           </span>
         </div>
         <span className="ap-header-time" suppressHydrationWarning>
@@ -694,13 +693,6 @@ export default function AdminPanel() {
         </span>
       </div>
 
-      {connError && (
-        <div className="ap-error-banner">
-          ⚠ Load balancer is unaccessible
-        </div>
-      )}
-
-      {/* Sidebar + content */}
       <div className="ap-layout">
         <nav className="ap-sidebar">
           {NAV_ITEMS.map(n => (
