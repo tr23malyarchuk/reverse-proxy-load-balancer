@@ -1,5 +1,3 @@
-/* ── AdminPanel.css v2 ──────────────────────────────────────────────────── */
-
 :root {
   --ap-bg:      #0d1117;
   --ap-bg2:     #161b22;
@@ -12,7 +10,6 @@
   --ap-mono:    'JetBrains Mono','Fira Mono','Consolas',monospace;
 }
 
-/* ── Root ─────────────────────────────────────────────────────────────────── */
 .ap-root {
   width: 100%;
   font-family: system-ui, -apple-system, sans-serif;
@@ -21,7 +18,6 @@
   min-height: calc(100vh - 52px);
 }
 
-/* ── Top status bar ──────────────────────────────────────────────────────── */
 .ap-header {
   display: flex;
   align-items: center;
@@ -38,20 +34,17 @@
 .ap-header-status { font-size: 12px; color: var(--ap-muted); }
 .ap-header-time   { font-size: 11px; color: var(--ap-muted); font-family: var(--ap-mono); }
 
-/* ── Error banner ────────────────────────────────────────────────────────── */
 .ap-error-banner {
   background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.22);
   color: #fca5a5; font-size: 12px; padding: 10px 20px;
 }
 
-/* ── Layout ──────────────────────────────────────────────────────────────── */
 .ap-layout {
   display: grid;
   grid-template-columns: 200px 1fr;
   min-height: calc(100vh - 88px);
 }
 
-/* ── Sidebar ─────────────────────────────────────────────────────────────── */
 .ap-sidebar {
   background: var(--ap-bg2);
   border-right: 1px solid var(--ap-border);
@@ -81,10 +74,8 @@
 .ap-nav-icon { font-size: 13px; width: 16px; text-align: center; opacity: .7; }
 .ap-nav-label { line-height: 1.3; }
 
-/* ── Content ─────────────────────────────────────────────────────────────── */
 .ap-content { padding: 24px; overflow-y: auto; }
 
-/* ── Panel ────────────────────────────────────────────────────────────────── */
 .ap-panel { display: flex; flex-direction: column; gap: 16px; }
 .ap-section-hdr {
   display: flex;
@@ -105,7 +96,6 @@
   margin: 0;
 }
 
-/* ── Card ────────────────────────────────────────────────────────────────── */
 .ap-card {
   background: var(--ap-bg2);
   border: 1px solid var(--ap-border);
@@ -127,7 +117,6 @@
   color: var(--ap-muted);
 }
 
-/* ── Table ───────────────────────────────────────────────────────────────── */
 .ap-table-card { background: var(--ap-bg2); border: 1px solid var(--ap-border); border-radius: 10px; overflow: hidden; }
 .ap-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .ap-table thead tr { background: var(--ap-bg3); border-bottom: 1px solid var(--ap-border); }
@@ -140,7 +129,6 @@
 .ap-table tr:last-child td { border-bottom: none; }
 .ap-table tr:hover td { background: rgba(255,255,255,.015); }
 
-/* ── Badges ──────────────────────────────────────────────────────────────── */
 .ap-badge {
   display: inline-block;
   font-family: var(--ap-mono); font-size: 10px; font-weight: 500;
@@ -151,7 +139,6 @@
 .ap-badge-algo  { background: rgba(var(--algo-color,100 116 139),.1); color: var(--algo-color,#6b7280); border: 1px solid rgba(var(--algo-color,100 116 139),.2); }
 .ap-badge-muted { background: rgba(107,114,128,.12); color: var(--ap-muted); }
 
-/* ── Buttons ─────────────────────────────────────────────────────────────── */
 .ap-btn {
   background: var(--ap-bg3); border: 1px solid var(--ap-border2);
   color: var(--ap-text); font-family: inherit; font-size: 12px;
@@ -171,7 +158,6 @@
 .ap-btn-icon:hover { color: var(--ap-text); border-color: var(--ap-border2); background: var(--ap-bg3); }
 .ap-btn-icon-danger:hover { color: #ef4444; border-color: rgba(239,68,68,.3); background: rgba(239,68,68,.08); }
 
-/* ── Forms ───────────────────────────────────────────────────────────────── */
 .ap-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
 .ap-field-label { font-size: 12px; color: var(--ap-muted); }
 .ap-input {
@@ -187,7 +173,6 @@
   border-top: 1px solid var(--ap-border); padding-top: 12px; margin-bottom: 10px;
 }
 
-/* ── Modal ───────────────────────────────────────────────────────────────── */
 .ap-modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.65);
   display: flex; align-items: center; justify-content: center; z-index: 1000;
@@ -208,7 +193,6 @@
 .ap-modal-body { padding: 20px; }
 .ap-modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
-/* ── Spinner ─────────────────────────────────────────────────────────────── */
 .ap-spinner {
   width: 28px; height: 28px; margin: 40px auto;
   border: 2px solid var(--ap-border2);
@@ -218,7 +202,6 @@
 }
 @keyframes ap-spin { to { transform: rotate(360deg); } }
 
-/* ── Pool cards ──────────────────────────────────────────────────────────── */
 .ap-pools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px,1fr)); gap: 12px; }
 .ap-pool-card {
   background: var(--ap-bg2); border: 1px solid var(--ap-border);
@@ -241,7 +224,6 @@
   padding: 4px 0; border-top: 1px solid var(--ap-border);
 }
 
-/* ── Machine load ─────────────────────────────────────────────────────────── */
 .ap-load-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 12px; }
 .ap-load-card {
   background: var(--ap-bg2); border: 1px solid var(--ap-border);
@@ -252,23 +234,19 @@
 .ap-load-name { font-family: var(--ap-mono); font-size: 15px; font-weight: 600; }
 .ap-load-port { font-family: var(--ap-mono); font-size: 11px; color: var(--ap-muted); margin-bottom: 10px; }
 
-/* ── Gauge ───────────────────────────────────────────────────────────────── */
 .ap-gauge-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .ap-gauge-label { font-size: 10px; color: var(--ap-muted); width: 28px; font-family: var(--ap-mono); }
 .ap-gauge-track { flex: 1; height: 5px; background: var(--ap-bg3); border-radius: 3px; overflow: hidden; }
 .ap-gauge-fill { height: 100%; border-radius: 3px; transition: width .4s ease, background .4s; }
 .ap-gauge-val { font-family: var(--ap-mono); font-size: 10px; width: 44px; text-align: right; }
 
-/* ── Chart ───────────────────────────────────────────────────────────────── */
 .ap-chart-card { min-height: 200px; }
 .ap-bar-svg { display: block; width: 100%; height: 210px; padding: 8px 16px 4px; box-sizing: border-box; }
 .ap-empty-chart { padding: 28px 16px; font-size: 12px; color: var(--ap-muted); font-family: var(--ap-mono); text-align: center; }
 
-/* ── Latency layout ──────────────────────────────────────────────────────── */
 .ap-latency-row { display: flex; gap: 12px; flex-wrap: wrap; }
 .ap-latency-row > * { min-width: 200px; }
 
-/* ── Misc ────────────────────────────────────────────────────────────────── */
 .ap-mono  { font-family: var(--ap-mono); }
 .ap-fw    { font-weight: 600; }
 .ap-muted { color: var(--ap-muted); }

@@ -9,7 +9,6 @@ const SERVER_COLORS = ["#3b82f6","#22c55e","#f59e0b","#ef4444","#a78bfa","#34d39
 const ALGO_COLORS = { round_robin:"#3b82f6", random:"#22c55e", least_connections:"#f59e0b",
                       ip_hash:"#a78bfa", power_of_two:"#34d399" };
 
-// ── helpers ──────────────────────────────────────────────────────────────────
 const apiFetch = (url, opts = {}) =>
   fetch(API + url, { headers: { "Content-Type": "application/json" }, ...opts });
 
@@ -28,7 +27,6 @@ function usePoll(fetchFn, interval = 5000) {
   return { data, loading, error, refresh };
 }
 
-// ── BarChart (SVG) ───────────────────────────────────────────────────────────
 function BarChart({ data, colors, unit = "" }) {
   if (!data || !data.length) return <div className="ap-empty-chart">Немає даних</div>;
   const max = Math.max(...data.map(d => d.value), 0.001);
@@ -63,7 +61,6 @@ function BarChart({ data, colors, unit = "" }) {
   );
 }
 
-// ── GaugeBar ─────────────────────────────────────────────────────────────────
 function GaugeBar({ value, max = 100, color = "#3b82f6", label }) {
   const pct = Math.min(100, Math.max(0, (value / max) * 100));
   const c = pct > 80 ? "#ef4444" : pct > 50 ? "#f59e0b" : color;
@@ -78,7 +75,6 @@ function GaugeBar({ value, max = 100, color = "#3b82f6", label }) {
   );
 }
 
-// ── Modal ─────────────────────────────────────────────────────────────────────
 function Modal({ title, onClose, children }) {
   return (
     <div className="ap-modal-overlay" onClick={onClose}>
@@ -93,7 +89,6 @@ function Modal({ title, onClose, children }) {
   );
 }
 
-// ── Field ─────────────────────────────────────────────────────────────────────
 function Field({ label, children }) {
   return (
     <div className="ap-field">
@@ -111,14 +106,12 @@ function Select({ children, ...props }) {
   return <select className="ap-input" {...props}>{children}</select>;
 }
 
-// ── StatusBadge ───────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
   const map = { running: "ap-badge-ok", stopped: "ap-badge-fail", error: "ap-badge-fail",
                 unknown: "ap-badge-muted" };
   return <span className={`ap-badge ${map[status] || "ap-badge-muted"}`}>{status}</span>;
 }
 
-// ── SectionHeader ─────────────────────────────────────────────────────────────
 function SectionHeader({ title, action }) {
   return (
     <div className="ap-section-hdr">
@@ -128,12 +121,9 @@ function SectionHeader({ title, action }) {
   );
 }
 
-// ── Spinner ───────────────────────────────────────────────────────────────────
 function Spinner() { return <div className="ap-spinner" />; }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // PANEL: Services & Images
-// ─────────────────────────────────────────────────────────────────────────────
 function ServicesPanel() {
   const fetchFn = useCallback(() => apiFetch("/cfg/services").then(r => r.json()), []);
   const { data: services, loading, refresh } = usePoll(fetchFn, 10000);
@@ -233,9 +223,7 @@ function ServicesPanel() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // PANEL: Machines
-// ─────────────────────────────────────────────────────────────────────────────
 function MachinesPanel() {
   const fetchFn = useCallback(() => apiFetch("/cfg/machines").then(r => r.json()), []);
   const loadFn  = useCallback(() => apiFetch("/cfg/machine_load").then(r => r.json()), []);
@@ -317,9 +305,7 @@ function MachinesPanel() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // PANEL: Pools
-// ─────────────────────────────────────────────────────────────────────────────
 function PoolsPanel() {
   const fetchPools    = useCallback(() => apiFetch("/cfg/pools").then(r => r.json()), []);
   const fetchServices = useCallback(() => apiFetch("/cfg/services").then(r => r.json()), []);
@@ -465,9 +451,7 @@ function PoolsPanel() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // PANEL: Machines Load
-// ─────────────────────────────────────────────────────────────────────────────
 function MachineLoadPanel() {
   const [loads, setLoads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -590,9 +574,7 @@ function ContainersPanel() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // PANEL: Service Latency
-// ─────────────────────────────────────────────────────────────────────────────
 function LatencyPanel() {
   const latFn   = useCallback(() => apiFetch("/cfg/latency").then(r => r.json()), []);
   const statsFn = useCallback(() => apiFetch("/stats").then(r => r.json()), []);
@@ -658,9 +640,7 @@ function LatencyPanel() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // ROOT: AdminPanel
-// ─────────────────────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
   { id: "services",   label: "Services & Images", icon: "⬡" },
   { id: "machines",   label: "Machines",           icon: "⬢" },
