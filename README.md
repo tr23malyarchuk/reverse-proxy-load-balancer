@@ -189,23 +189,32 @@ docker stop srv1 srv2 srv3 srv4 && docker rm srv1 srv2 srv3 srv4
 
 ```
 reverse-proxy-lb/
+├── data/                          # Shared data directory
+│   ├── requests.db                # SQLite database
+│   ├── sample.wav                 # Demo audio file
+│   ├── sample.pdf                 # Demo PDF file
+│   ├── sample.webp                # Demo image file
+│   ├── sample.rar                 # Demo archive file
+│   └── img/                       # Images for docs
+│       ├── User.png               # User interface screenshot
+│       ├── Admin.png              # Admin panel screenshot
+│       ├── UseCase.png            # Use case diagram
+│       └── ER.png                 # Database ER diagram
 ├── backend/
-│   ├── main.py           # load balancer (FastAPI)
-│   ├── admin.py          # terminal admin panel
-│   ├── db_schema.py      # database schema
-│   ├── scriptA.sh        # container orchestrator
-│   ├── load_test.js      # k6 scenarios
-│   ├── data/
-│   │   └── requests.db   # SQLite database
+│   ├── main.py                    # Load balancer (FastAPI)
+│   ├── admin.py                   # Terminal admin panel
+│   ├── db_schema.py               # Database schema
+│   ├── scriptA.sh                 # Container orchestrator
+│   ├── load_test.js               # k6 test scenarios
 │   └── Dockerfile
 ├── converter/
-│   ├── app.py            # conversion services
+│   ├── app.py                     # Conversion services
 │   └── Dockerfile
 ├── frontend/
 │   ├── src/
-│   │   ├── App.js        # React application
-│   │   └── AdminPanel.js # admin panel
-│   ├── nginx.conf        # reverse proxy config
+│   │   ├── App.js                 # React application
+│   │   └── AdminPanel.js          # Admin panel
+│   ├── nginx.conf                 # Reverse proxy config
 │   └── Dockerfile
 └── docker-compose.yml
 ```
