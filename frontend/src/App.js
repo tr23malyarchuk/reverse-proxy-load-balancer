@@ -1,3 +1,4 @@
+// App.js
 import React, { useState, useCallback, Suspense } from "react";
 import "./App.css";
 

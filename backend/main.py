@@ -1,3 +1,4 @@
+# main.py - load balancer
 from __future__ import annotations
 
 import asyncio
@@ -439,21 +440,39 @@ async def cfg_create_service(request: Request):
     body = await request.json()
     with _cfg_db() as c:
         cur = c.execute(
-            "INSERT INTO Services (name, description, base_path, cpu_intensity) VALUES (?,?,?,?)",
-            (body["name"], body.get("description",""), body["base_path"], body.get("cpu_intensity","medium")),
+            """INSERT INTO Services 
+               (name, description, base_path, cpu_intensity, docker_image, update_period) 
+               VALUES (?,?,?,?,?,?)""",
+            (
+                body["name"], 
+                body.get("description",""), 
+                body["base_path"], 
+                body.get("cpu_intensity","medium"),
+                body.get("docker_image", "tr23malyarchuk/pa-tr23malyarchuk:latest"),
+                body.get("update_period", "None")
+            ),
         )
         c.commit()
         row = c.execute("SELECT * FROM Services WHERE idService=?", (cur.lastrowid,)).fetchone()
     return dict(row)
-
 
 @app.put("/cfg/services/{sid}")
 async def cfg_update_service(sid: int, request: Request):
     body = await request.json()
     with _cfg_db() as c:
         c.execute(
-            "UPDATE Services SET name=?, description=?, base_path=?, cpu_intensity=? WHERE idService=?",
-            (body["name"], body.get("description",""), body["base_path"], body.get("cpu_intensity","medium"), sid),
+            """UPDATE Services 
+               SET name=?, description=?, base_path=?, cpu_intensity=?, docker_image=?, update_period=? 
+               WHERE idService=?""",
+            (
+                body["name"], 
+                body.get("description",""), 
+                body["base_path"], 
+                body.get("cpu_intensity","medium"),
+                body.get("docker_image", "tr23malyarchuk/pa-tr23malyarchuk:latest"),
+                body.get("update_period", "None"),
+                sid
+            ),
         )
         c.commit()
         row = c.execute("SELECT * FROM Services WHERE idService=?", (sid,)).fetchone()

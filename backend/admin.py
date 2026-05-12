@@ -1,3 +1,4 @@
+# admin.py - admin panel logics
 import sqlite3
 import time
 from pathlib import Path

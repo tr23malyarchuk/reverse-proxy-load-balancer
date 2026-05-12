@@ -22,8 +22,8 @@ CREATE TABLE IF NOT EXISTS Services (
     base_path     TEXT    NOT NULL,
     cpu_intensity TEXT    NOT NULL DEFAULT 'medium'
                   CHECK(cpu_intensity IN ('low','medium','high')),
-    docker_image  TEXT,
-    update_period TEXT
+    docker_image  TEXT    DEFAULT 'tr23malyarchuk/pa-tr23malyarchuk:latest',
+    update_period TEXT    DEFAULT 'None'
 );
 
 CREATE TABLE IF NOT EXISTS Pools (
@@ -128,12 +128,12 @@ SEED_DATA = [
         [(1, "localhost", "127.0.0.1", 22, "Local development machine")],
     ),
     (
-        "INSERT OR IGNORE INTO Services (idService, name, description, base_path, cpu_intensity) VALUES (?,?,?,?,?)",
+        "INSERT OR IGNORE INTO Services (idService, name, description, base_path, cpu_intensity, docker_image, update_period) VALUES (?,?,?,?,?,?,?)",
         [
-            (1, "wav2mp3",  "Конвертація WAV у MP3",   "/wav2mp3", "medium"),
-            (2, "pdf2png",  "Конвертація PDF у PNG",   "/pdf2png",      "high"),
-            (3, "webp2png", "Конвертація WEBP у PNG",  "/webp2png",     "low"),
-            (4, "rar2zip",  "Перепакування RAR у ZIP", "/ziprar",       "medium"),
+            (1, "wav2mp3",  "Конвертація WAV у MP3",   "/wav2mp3", "medium", "tr23malyarchuk/pa-tr23malyarchuk:latest", "None"),
+            (2, "pdf2png",  "Конвертація PDF у PNG",   "/pdf2png", "high",   "tr23malyarchuk/pa-tr23malyarchuk:latest", "None"),
+            (3, "webp2png", "Конвертація WEBP у PNG",  "/webp2png", "low",    "tr23malyarchuk/pa-tr23malyarchuk:latest", "None"),
+            (4, "rar2zip",  "Перепакування RAR у ZIP", "/ziprar",  "medium", "tr23malyarchuk/pa-tr23malyarchuk:latest", "None"),
         ],
     ),
     (
