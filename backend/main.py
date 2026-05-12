@@ -680,6 +680,33 @@ async def cfg_latency():
     return [{"endpoint": r[0], "total": r[1], "avg_ms": r[2],
              "min_ms": r[3], "max_ms": r[4], "success_rate": r[5]} for r in rows]
 
+@app.get("/stats/by-algorithm")
+async def stats_by_algorithm():
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        rows = conn.execute("""
+            SELECT algorithm,
+                   COUNT(*) AS total,
+                   ROUND(AVG(total_time), 3) AS avg_time,
+                   COUNT(DISTINCT server_name) AS servers_used
+            FROM requests
+            GROUP BY algorithm
+            ORDER BY algorithm
+        """).fetchall()
+    finally:
+        conn.close()
+    
+    return {
+        "algorithms": [
+            {
+                "name": r[0],
+                "total_requests": r[1],
+                "avg_response_time": r[2],
+                "servers_used": r[3]
+            }
+            for r in rows
+        ]
+    }
 
 # Core proxy helper  (retries across healthy servers)
 async def _proxy(

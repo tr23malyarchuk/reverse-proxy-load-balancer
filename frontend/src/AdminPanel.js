@@ -878,279 +878,74 @@ function LatencyPanel() {
 
 // PANEL: Balancing Strategies
 function BalancingStrategies() {
-  const [testResults, setTestResults] = useState([]);
-  const [isTesting, setIsTesting] = useState(false);
-  const [selectedAlgorithm, setSelectedAlgorithm] = useState("all");
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
   
-  // Данные для графиков
-  const [requestDistribution, setRequestDistribution] = useState({});
-  const [latencyData, setLatencyData] = useState({});
-  const [connectionData, setConnectionData] = useState({});
+  useEffect(() => {
+    fetch('http://localhost:8000/stats/by-algorithm')
+      .then(res => res.json())
+      .then(setData)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
   
-  // Получаем статистику из БД
-  const statsFn = useCallback(() => apiFetch("/stats").then(r => r.json()), []);
-  const { data: statsData } = usePoll(statsFn, 5000);
+  if (loading) return <Spinner />;
+  if (!data?.algorithms?.length) {
+    return (
+      <div className="ap-panel">
+        <SectionHeader title="Balancing Strategies" />
+        <p className="ap-description">
+          Немає даних. Зробіть кілька запитів з різними алгоритмами:
+          <code>LB_ALG=round_robin k6 run backend/load_test.js</code>
+        </p>
+      </div>
+    );
+  }
   
-  // Получаем живые серверы
-  const serversFn = useCallback(() => apiFetch("/servers").then(r => r.json()), []);
-  const { data: serversData } = usePoll(serversFn, 3000);
-  
-  // Запуск теста для конкретного алгоритма
-  const runAlgorithmTest = async (algorithm) => {
-    setIsTesting(true);
-    const results = [];
-    
-    // Отправляем 20 запросов для статистики
-    for (let i = 0; i < 20; i++) {
-      try {
-        // Создаем тестовый WAV файл
-        const wavHeader = new Uint8Array(44);
-        const view = new DataView(wavHeader.buffer);
-        view.setUint32(0, 0x52494646, true); // "RIFF"
-        view.setUint32(4, 36, true);
-        view.setUint32(8, 0x57415645, true); // "WAVE"
-        view.setUint32(12, 0x666d7420, true); // "fmt "
-        view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true);
-        view.setUint16(22, 1, true);
-        view.setUint32(24, 8000, true);
-        view.setUint32(28, 16000, true);
-        view.setUint16(32, 2, true);
-        view.setUint16(34, 16, true);
-        view.setUint32(36, 0x64617461, true); // "data"
-        view.setUint32(40, 0, true);
-        
-        const testBlob = new Blob([wavHeader], { type: 'audio/wav' });
-        const formData = new FormData();
-        formData.append('file', testBlob, 'test.wav');
-        formData.append('algorithm', algorithm);
-        
-        const startTime = Date.now();
-        const response = await fetch('http://localhost:8000/wav2mp3', {
-          method: 'POST',
-          body: formData,
-        });
-        const endTime = Date.now();
-        
-        const chosenServer = response.headers.get('x-chosen-server');
-        
-        results.push({
-          algorithm,
-          server: chosenServer,
-          latency: endTime - startTime,
-          success: response.ok,
-        });
-        
-      } catch (err) {
-        results.push({
-          algorithm,
-          server: 'error',
-          latency: 0,
-          success: false,
-        });
-      }
-      
-      // Небольшая задержка между запросами
-      await new Promise(r => setTimeout(r, 500));
-    }
-    
-    // Обновляем данные для графиков
-    const distribution = {};
-    const latencies = {};
-    results.forEach(r => {
-      if (r.server) {
-        distribution[r.server] = (distribution[r.server] || 0) + 1;
-      }
-      if (r.latency > 0) {
-        if (!latencies[r.algorithm]) latencies[r.algorithm] = [];
-        latencies[r.algorithm].push(r.latency);
-      }
-    });
-    
-    setRequestDistribution(prev => ({ ...prev, [algorithm]: distribution }));
-    
-    // Вычисляем среднюю латентность
-    const avgLatency = {};
-    Object.keys(latencies).forEach(algo => {
-      const sum = latencies[algo].reduce((a, b) => a + b, 0);
-      avgLatency[algo] = sum / latencies[algo].length;
-    });
-    setLatencyData(avgLatency);
-    
-    // Данные о соединениях из /servers
-    if (serversData?.servers) {
-      const connData = {};
-      serversData.servers.forEach(s => {
-        connData[s.name] = s.active_connections;
-      });
-      setConnectionData(connData);
-    }
-    
-    setIsTesting(false);
-  };
-  
-  // Описания алгоритмов
-  const algorithmsInfo = {
-    round_robin: {
-      name: "Round Robin",
-      description: "Запити розподіляються по колу між усіма серверами. Кожен наступний запит йде до наступного сервера в черзі.",
-      pros: "✅ Простота реалізації, рівномірний розподіл",
-      cons: "❌ Не враховує поточне навантаження серверів",
-      color: "#3b82f6",
-    },
-    random: {
-      name: "Random",
-      description: "Випадковий вибір сервера для кожного запиту.",
-      pros: "✅ Простота, відсутність упередженості",
-      cons: "❌ Нерівномірний розподіл при малій кількості запитів",
-      color: "#22c55e",
-    },
-    least_connections: {
-      name: "Least Connections",
-      description: "Запит направляється серверу з найменшою кількістю активних з'єднань.",
-      pros: "✅ Адаптивний, враховує поточне навантаження",
-      cons: "❌ Потрібно відстежувати стан кожного сервера",
-      color: "#f59e0b",
-    },
-    ip_hash: {
-      name: "IP Hash",
-      description: "IP-адреса клієнта хешується, і запити одного клієнта завжди потрапляють на той самий сервер.",
-      pros: "✅ Sticky sessions, збереження стану сесії",
-      cons: "❌ Нерівномірний розподіл при невеликій кількості клієнтів",
-      color: "#a78bfa",
-    },
-    power_of_two: {
-      name: "Power of Two Choices",
-      description: "Випадково обираються два сервери, запит направляється менш завантаженому з них.",
-      pros: "✅ Баланс між випадковістю та навантаженням",
-      cons: "❌ Складніша реалізація",
-      color: "#ef4444",
-    },
-  };
-  
-  // Текущие активные соединения
-  const currentConnections = {};
-  (serversData?.servers || []).forEach(s => {
-    currentConnections[s.name] = s.active_connections;
-  });
+  const colors = ["#3b82f6", "#22c55e", "#f59e0b", "#a78bfa", "#ef4444"];
   
   return (
     <div className="ap-panel">
       <SectionHeader title="Balancing Strategies" />
-      <p className="ap-description">
-        Порівняння алгоритмів балансування навантаження. Натисніть кнопку <strong>▶ Тест</strong> біля алгоритму,
-        щоб відправити 20 тестових запитів і побачити розподіл між серверами.
-      </p>
       
-      <div className="ap-strategies-grid">
-        {Object.keys(algorithmsInfo).map(algoKey => {
-          const info = algorithmsInfo[algoKey];
-          const distribution = requestDistribution[algoKey] || {};
-          const totalReqs = Object.values(distribution).reduce((a, b) => a + b, 0);
-          const avgLatency = latencyData[algoKey];
-          
-          return (
-            <div key={algoKey} className="ap-strategy-card" style={{ borderTopColor: info.color }}>
-              <div className="ap-strategy-header">
-                <div>
-                  <h3 className="ap-strategy-name" style={{ color: info.color }}>{info.name}</h3>
-                  <span className="ap-badge ap-badge-algo">{algoKey}</span>
-                </div>
-                <button 
-                  className="ap-btn-test" 
-                  onClick={() => runAlgorithmTest(algoKey)}
-                  disabled={isTesting}
-                >
-                  {isTesting ? "⏳ Тестування..." : "▶ Тест"}
-                </button>
-              </div>
-              
-              <p className="ap-strategy-description">{info.description}</p>
-              
-              <div className="ap-strategy-pros-cons">
-                <span className="ap-strategy-pros">{info.pros}</span>
-                <span className="ap-strategy-cons">{info.cons}</span>
-              </div>
-              
-              {/* График распределения запросов */}
-              {totalReqs > 0 && (
-                <div className="ap-strategy-chart">
-                  <div className="ap-chart-label">Розподіл запитів (всього: {totalReqs})</div>
-                  <div className="ap-distribution-bars">
-                    {Object.entries(distribution).map(([server, count]) => (
-                      <div key={server} className="ap-distribution-item">
-                        <div className="ap-distribution-bar">
-                          <div 
-                            className="ap-distribution-fill" 
-                            style={{ 
-                              width: `${(count / totalReqs) * 100}%`,
-                              backgroundColor: info.color,
-                            }}
-                          />
-                        </div>
-                        <div className="ap-distribution-label">
-                          {server}: {count} ({Math.round((count / totalReqs) * 100)}%)
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              {/* Средняя латентность */}
-              {avgLatency && (
-                <div className="ap-strategy-latency">
-                  <span className="ap-strategy-latency-label">⏱ Середня латентність:</span>
-                  <span className="ap-strategy-latency-value">{avgLatency.toFixed(0)} мс</span>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      
-      {/* Сводная статистика по всем серверам */}
-      <div className="ap-card" style={{ marginTop: 16 }}>
-        <div className="ap-card-header">
-          <span className="ap-section-title">📊 Поточний стан серверів</span>
+      <div className="ap-latency-row">
+        <div className="ap-card ap-chart-card" style={{ flex: 1 }}>
+          <div className="ap-card-header">
+            <span className="ap-section-title">📊 Кількість запитів по алгоритмах</span>
+          </div>
+          <BarChart
+            data={data.algorithms.map(a => ({ label: a.name, value: a.total_requests }))}
+            colors={colors}
+            unit=""
+          />
         </div>
-        <div className="ap-server-stats">
-          {(serversData?.servers || []).map(server => (
-            <div key={server.name} className="ap-server-stat-item">
-              <span className="ap-server-name">{server.name}</span>
-              <span className="ap-server-connections">
-                🖥 {server.active_connections} активних з'єднань
-              </span>
-              <span className="ap-server-url">{server.url}</span>
-            </div>
-          ))}
-          {(!serversData?.servers || serversData.servers.length === 0) && (
-            <div className="ap-empty">Немає активних серверів. Запустіть scriptA.sh</div>
-          )}
+        
+        <div className="ap-card ap-chart-card" style={{ flex: 1 }}>
+          <div className="ap-card-header">
+            <span className="ap-section-title">⏱ Середній час відповіді (с)</span>
+          </div>
+          <BarChart
+            data={data.algorithms.map(a => ({ label: a.name, value: a.avg_response_time }))}
+            colors={colors}
+            unit="s"
+          />
         </div>
       </div>
       
-      {/* Таблица сравнения алгоритмов */}
       <div className="ap-table-card">
-        <div className="ap-card-header">
-          <span className="ap-section-title">📋 Порівняльна таблиця алгоритмів</span>
-        </div>
         <table className="ap-table">
           <thead>
-            <tr>
-              <th>Алгоритм</th>
-              <th>Складність</th>
-              <th>Sticky sessions</th>
-              <th>Адаптивність</th>
-              <th>Краще для</th>
-            </tr>
+            <tr><th>Алгоритм</th><th>Запитів</th><th>Ср. час (с)</th><th>Серверів</th></tr>
           </thead>
           <tbody>
-            <tr><td className="ap-mono">round_robin</td><td>O(1)</td><td>❌</td><td>❌</td><td>Однорідне навантаження</td></tr>
-            <tr><td className="ap-mono">random</td><td>O(1)</td><td>❌</td><td>❌</td><td>Велика кількість запитів</td></tr>
-            <tr><td className="ap-mono">least_connections</td><td>O(n)</td><td>❌</td><td>✅</td><td>Різнорідне навантаження</td></tr>
-            <tr><td className="ap-mono">ip_hash</td><td>O(1)</td><td>✅</td><td>❌</td><td>Сесійна робота</td></tr>
-            <tr><td className="ap-mono">power_of_two</td><td>O(1)</td><td>❌</td><td>✅</td><td>Баланс швидкості та якості</td></tr>
+            {data.algorithms.map(a => (
+              <tr key={a.name}>
+                <td className="ap-mono">{a.name}</td>
+                <td>{a.total_requests}</td>
+                <td>{a.avg_response_time}</td>
+                <td>{a.servers_used}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
