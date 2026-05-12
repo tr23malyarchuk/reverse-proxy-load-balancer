@@ -34,7 +34,7 @@ function BarChart({ data, colors, unit = "" }) {
   const W = 320, H = 120, LABEL_H = 72, TOP_PAD = 22, TOTAL_H = TOP_PAD + H + LABEL_H;
   const count = data.length;
   const gap = W / count;
-  const barW = Math.max(6, Math.min(40, gap * 0.6));
+  const barW = Math.max(4, Math.min(20, gap * 0.35));
   return (
     <svg viewBox={`0 0 ${W} ${TOTAL_H}`} className="ap-bar-svg" style={{ width:"100%", height:"auto" }}>
       <line x1={0} y1={TOP_PAD+H} x2={W} y2={TOP_PAD+H} stroke="#374151" strokeWidth="0.8"/>
@@ -957,8 +957,8 @@ function BalancingStrategies() {
 const NAV_ITEMS = [
   { id: "services",   label: "Services & Images", icon: "⬡" },
   { id: "machines",   label: "Machines",           icon: "⬢" },
-  { id: "pools",      label: "Pools",              icon: "◈" },
-  { id: "strategies", label: "Balancing Strategies", icon: "⚖️" },  // ← НОВАЯ
+//  { id: "pools",      label: "Pools",              icon: "◈" },
+  { id: "strategies", label: "Balancing Strategies", icon: "◈" },
   { id: "load",       label: "Machines Load",      icon: "◉" },
   { id: "containers", label: "Running Containers", icon: "◎" },
   { id: "latency",    label: "Service Latency",    icon: "◈" },
